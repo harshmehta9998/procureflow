@@ -1,0 +1,31 @@
+{
+  "name": "Institute",
+  "type": "object",
+  "properties": {
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "institute_code": {
+      "type": "string",
+      "title": "Institute Code"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "title": "Status"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    }
+  },
+  "required": [
+    "institute_name",
+    "institute_code"
+  ]
+}

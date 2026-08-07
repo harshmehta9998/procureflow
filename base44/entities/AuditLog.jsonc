@@ -1,0 +1,42 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "entity_type": {
+      "type": "string",
+      "title": "Entity Type"
+    },
+    "entity_id": {
+      "type": "string",
+      "title": "Entity ID"
+    },
+    "po_number": {
+      "type": "string",
+      "title": "PO Number"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "User"
+    },
+    "action": {
+      "type": "string",
+      "title": "Action"
+    },
+    "old_value": {
+      "type": "string",
+      "title": "Old Value"
+    },
+    "new_value": {
+      "type": "string",
+      "title": "New Value"
+    },
+    "remarks": {
+      "type": "string",
+      "title": "Remarks"
+    }
+  },
+  "required": [
+    "entity_type",
+    "action"
+  ]
+}

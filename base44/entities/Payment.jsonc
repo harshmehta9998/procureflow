@@ -1,0 +1,68 @@
+{
+  "name": "Payment",
+  "type": "object",
+  "properties": {
+    "po_id": {
+      "type": "string",
+      "title": "Purchase Order ID"
+    },
+    "po_number": {
+      "type": "string",
+      "title": "PO Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "vendor_name": {
+      "type": "string",
+      "title": "Vendor Name"
+    },
+    "payment_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Payment Date"
+    },
+    "amount_paid": {
+      "type": "number",
+      "title": "Amount Paid"
+    },
+    "payment_mode": {
+      "type": "string",
+      "enum": [
+        "NEFT",
+        "RTGS",
+        "IMPS",
+        "Cheque",
+        "Cash"
+      ],
+      "title": "Payment Mode"
+    },
+    "reference_number": {
+      "type": "string",
+      "title": "Reference Number"
+    },
+    "remarks": {
+      "type": "string",
+      "title": "Remarks"
+    },
+    "attachment_url": {
+      "type": "string",
+      "title": "Payment Proof URL"
+    },
+    "recorded_by_name": {
+      "type": "string",
+      "title": "Recorded By"
+    }
+  },
+  "required": [
+    "po_id",
+    "payment_date",
+    "amount_paid",
+    "payment_mode"
+  ]
+}

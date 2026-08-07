@@ -1,0 +1,69 @@
+{
+  "name": "Vendor",
+  "type": "object",
+  "properties": {
+    "vendor_name": {
+      "type": "string",
+      "title": "Vendor Name"
+    },
+    "vendor_type": {
+      "type": "string",
+      "enum": [
+        "Construction",
+        "Furniture",
+        "Equipment",
+        "Stationery",
+        "Marketing",
+        "Repairs",
+        "Consumables",
+        "Services",
+        "Electrical",
+        "Plumbing",
+        "Civil",
+        "Other"
+      ],
+      "title": "Vendor Type"
+    },
+    "contact_person": {
+      "type": "string",
+      "title": "Contact Person"
+    },
+    "mobile_number": {
+      "type": "string",
+      "title": "Mobile Number"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "gst_number": {
+      "type": "string",
+      "title": "GST Number"
+    },
+    "pan_number": {
+      "type": "string",
+      "title": "PAN Number"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
+    "bank_details": {
+      "type": "string",
+      "title": "Bank Details"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "title": "Status"
+    }
+  },
+  "required": [
+    "vendor_name",
+    "vendor_type"
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "name": "PurchaseOrder",
+  "type": "object",
+  "properties": {
+    "po_number": {
+      "type": "string",
+      "title": "PO Number"
+    },
+    "po_title": {
+      "type": "string",
+      "title": "PO Title"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "institute_code": {
+      "type": "string",
+      "title": "Institute Code"
+    },
+    "vendor_id": {
+      "type": "string",
+      "title": "Vendor ID"
+    },
+    "vendor_name": {
+      "type": "string",
+      "title": "Vendor Name"
+    },
+    "po_category": {
+      "type": "string",
+      "enum": [
+        "capex",
+        "opex"
+      ],
+      "title": "Capex/Opex"
+    },
+    "po_type": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "open"
+      ],
+      "title": "PO Type"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "purpose": {
+      "type": "string",
+      "title": "Purpose"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "gst_percent": {
+            "type": "number"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      },
+      "title": "Items"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Subtotal"
+    },
+    "gst_total": {
+      "type": "number",
+      "title": "GST Total"
+    },
+    "grand_total": {
+      "type": "number",
+      "title": "Grand Total"
+    },
+    "payment_terms": {
+      "type": "string",
+      "title": "Payment Terms"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+    },
+    "delivery_terms": {
+      "type": "string",
+      "title": "Delivery Terms"
+    },
+    "tax_terms": {
+      "type": "string",
+      "title": "Tax Terms"
+    },
+    "special_conditions": {
+      "type": "string",
+      "title": "Special Conditions"
+    },
+    "quotation_url": {
+      "type": "string",
+      "title": "Quotation Attachment URL"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "pending_approval",
+        "approved",
+        "rejected",
+        "sent_back",
+        "payment_pending",
+        "partially_paid",
+        "fully_paid",
+        "closed"
+      ],
+      "default": "draft",
+      "title": "Status"
+    },
+    "payment_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending",
+        "partial",
+        "paid"
+      ],
+      "default": "none",
+      "title": "Payment Status"
+    },
+    "amount_paid": {
+      "type": "number",
+      "default": 0,
+      "title": "Amount Paid"
+    },
+    "outstanding_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Outstanding Amount"
+    },
+    "rejection_reason": {
+      "type": "string",
+      "title": "Rejection Reason"
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Created By"
+    },
+    "parent_po_id": {
+      "type": "string",
+      "title": "Parent PO ID (for amendments)"
+    },
+    "is_amendment": {
+      "type": "boolean",
+      "default": false,
+      "title": "Is Amendment"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "po_title",
+    "institute_id",
+    "vendor_id",
+    "po_category",
+    "po_type"
+  ]
+}
