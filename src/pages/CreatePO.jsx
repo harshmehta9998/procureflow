@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { formatINR, calcItemAmount, calcTotals, generatePONumber, todayISO, logAudit } from "@/lib/poUtils";
+import { calcMilestoneAmount, createEmptyMilestone } from "@/lib/paymentScheduleUtils";
+import ScheduleBuilder from "@/components/payment-schedule/ScheduleBuilder";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Upload, ChevronRight, ChevronLeft, Save, Send, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
-const STEPS = ["Institute & Type", "Vendor", "Quotation", "PO Details", "Items", "Payment Terms", "Review"];
+const STEPS = ["Institute & Type", "Vendor", "Quotation", "PO Details", "Items", "Payment Schedule", "Review"];
 
 export default function CreatePO() {
   const navigate = useNavigate();
@@ -43,6 +45,7 @@ export default function CreatePO() {
     special_conditions: "",
     status: "draft",
   });
+  const [milestones, setMilestones] = useState([createEmptyMilestone(0)]);
 
   useEffect(() => {
     (async () => {
@@ -136,6 +139,40 @@ export default function CreatePO() {
 
       const created = await base44.entities.PurchaseOrder.create(poData);
       await logAudit("PurchaseOrder", created.id, poNumber, userName, submitForApproval ? "Submitted for Approval" : "PO Created", "", status, submitForApproval ? "Submitted for approval" : "Created as draft");
+
+      // Save payment schedule milestones
+      const validMilestones = milestones.filter((m) => m.milestone_name && m.milestone_name.trim());
+      if (validMilestones.length > 0) {
+        const milestoneRecords = validMilestones.map((m, idx) => ({
+          po_id: created.id,
+          po_number: poNumber,
+          institute_id: inst.id,
+          institute_name: inst.institute_name,
+          vendor_id: form.vendor_id,
+          vendor_name: vendor.vendor_name,
+          po_category: form.po_category,
+          milestone_name: m.milestone_name,
+          description: m.description || "",
+          amount_type: m.amount_type,
+          amount: Number(m.amount || 0),
+          calculated_amount: calcMilestoneAmount(m, totals.grandTotal),
+          trigger_type: m.trigger_type,
+          custom_trigger_name: m.custom_trigger_name || "",
+          trigger_event: m.trigger_event || "",
+          offset_days: Number(m.offset_days || 0),
+          fixed_date: m.fixed_date || "",
+          due_date: "",
+          status: "pending",
+          actual_trigger_date: m.actual_trigger_date || "",
+          amount_paid: 0,
+          outstanding_amount: calcMilestoneAmount(m, totals.grandTotal),
+          remarks: m.remarks || "",
+          order_index: idx,
+          deleted: false,
+        }));
+        await base44.entities.PaymentMilestone.bulkCreate(milestoneRecords);
+        await base44.entities.PurchaseOrder.update(created.id, { has_schedule: true });
+      }
 
       toast.success(submitForApproval ? "PO submitted for approval" : "PO saved as draft");
       navigate(`/po/${created.id}`);
@@ -332,16 +369,17 @@ export default function CreatePO() {
           </div>
         )}
 
-        {/* Step 5: Payment Terms */}
+        {/* Step 5: Payment Schedule */}
         {step === 5 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-sm font-medium">Payment Terms</Label><Input className="mt-1" value={form.payment_terms} onChange={(e) => setForm({ ...form, payment_terms: e.target.value })} placeholder="e.g. 50% advance, 50% on delivery" /></div>
-              <div><Label className="text-sm font-medium">Due Date</Label><Input type="date" className="mt-1" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
               <div><Label className="text-sm font-medium">Delivery Terms</Label><Input className="mt-1" value={form.delivery_terms} onChange={(e) => setForm({ ...form, delivery_terms: e.target.value })} placeholder="e.g. Within 30 days" /></div>
               <div><Label className="text-sm font-medium">Tax Terms</Label><Input className="mt-1" value={form.tax_terms} onChange={(e) => setForm({ ...form, tax_terms: e.target.value })} placeholder="e.g. GST 18%" /></div>
             </div>
-            <div><Label className="text-sm font-medium">Special Conditions</Label><Textarea className="mt-1" rows={3} value={form.special_conditions} onChange={(e) => setForm({ ...form, special_conditions: e.target.value })} placeholder="Any special conditions..." /></div>
+            <div><Label className="text-sm font-medium">Special Conditions</Label><Textarea className="mt-1" rows={2} value={form.special_conditions} onChange={(e) => setForm({ ...form, special_conditions: e.target.value })} placeholder="Any special conditions..." /></div>
+            <div className="border-t border-slate-100 pt-3">
+              <ScheduleBuilder milestones={milestones} setMilestones={setMilestones} grandTotal={totals.grandTotal} />
+            </div>
           </div>
         )}
 
@@ -355,7 +393,7 @@ export default function CreatePO() {
               <div className="flex justify-between"><span className="text-slate-500">PO Title:</span><span className="font-medium">{form.po_title}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Department:</span><span className="font-medium">{form.department || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Items:</span><span className="font-medium">{form.items.length} item(s)</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Due Date:</span><span className="font-medium">{form.due_date || "-"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Payment Schedule:</span><span className="font-medium">{milestones.filter((m) => m.milestone_name).length} milestone(s)</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Quotation:</span><span className="font-medium">{form.quotation_url ? "Attached" : "Not attached"}</span></div>
             </div>
             <div className="flex justify-end">

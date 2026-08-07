@@ -10,6 +10,14 @@
       "type": "string",
       "title": "PO Number"
     },
+    "milestone_id": {
+      "type": "string",
+      "title": "Payment Milestone ID"
+    },
+    "milestone_name": {
+      "type": "string",
+      "title": "Milestone Name"
+    },
     "institute_id": {
       "type": "string",
       "title": "Institute ID"

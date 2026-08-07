@@ -179,6 +179,75 @@
       "default": false,
       "title": "Is Amendment"
     },
+    "approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Approved Date"
+    },
+    "work_started_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Work Started Date"
+    },
+    "material_dispatched_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Material Dispatched Date"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Delivery Date"
+    },
+    "installation_started_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Installation Started Date"
+    },
+    "installation_completed_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Installation Completed Date"
+    },
+    "service_started_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Service Started Date"
+    },
+    "service_completed_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Service Completed Date"
+    },
+    "project_completed_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Project Completed Date"
+    },
+    "invoice_received_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Invoice Received Date"
+    },
+    "vendor_certified_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Vendor Certified Date"
+    },
+    "custom_event_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Custom Event Date"
+    },
+    "custom_event_name": {
+      "type": "string",
+      "title": "Custom Event Name"
+    },
+    "has_schedule": {
+      "type": "boolean",
+      "default": false,
+      "title": "Has Payment Schedule"
+    },
     "deleted": {
       "type": "boolean",
       "default": false,

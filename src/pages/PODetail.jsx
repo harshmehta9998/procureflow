@@ -4,6 +4,10 @@ import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatusBadge, PaymentBadge } from "@/components/po/Shared";
 import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS, logAudit, todayISO } from "@/lib/poUtils";
+import { calculateDueDate, computePOPaymentStatus, computePOTotals } from "@/lib/paymentScheduleUtils";
+import ScheduleView from "@/components/payment-schedule/ScheduleView";
+import TriggerEventsPanel from "@/components/payment-schedule/TriggerEventsPanel";
+import PaymentTimeline from "@/components/payment-schedule/PaymentTimeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft, CheckCircle, XCircle, RotateCcw, Wallet, FileDown, Upload,
-  History, Paperclip, Building2, User, IndianRupee, FileText, Clock
+  History, Paperclip, Building2, User, IndianRupee, FileText, Clock, Calendar, Zap
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -24,6 +28,7 @@ export default function PODetail() {
   const [po, setPo] = useState(null);
   const [payments, setPayments] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [milestones, setMilestones] = useState([]);
   const [vendor, setVendor] = useState(null);
   const [institute, setInstitute] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,12 +51,14 @@ export default function PODetail() {
         const p = await base44.entities.PurchaseOrder.get(id);
         if (p.deleted) { navigate("/purchase-orders"); return; }
         setPo(p);
-        const [pays, allLogs] = await Promise.all([
+        const [pays, allLogs, ms] = await Promise.all([
           base44.entities.Payment.filter({ po_id: id }, "-payment_date"),
           base44.entities.AuditLog.filter({ entity_id: id }, "-created_date"),
+          base44.entities.PaymentMilestone.filter({ po_id: id }, "order_index"),
         ]);
         setPayments(pays);
         setLogs(allLogs);
+        setMilestones(ms.filter((m) => !m.deleted));
         if (p.vendor_id) { try { setVendor(await base44.entities.Vendor.get(p.vendor_id)); } catch {} }
         if (p.institute_id) { try { setInstitute(await base44.entities.Institute.get(p.institute_id)); } catch {} }
       } finally {
@@ -63,10 +70,14 @@ export default function PODetail() {
   const refreshPO = async () => {
     const p = await base44.entities.PurchaseOrder.get(id);
     setPo(p);
-    const pays = await base44.entities.Payment.filter({ po_id: id }, "-payment_date");
+    const [pays, allLogs, ms] = await Promise.all([
+      base44.entities.Payment.filter({ po_id: id }, "-payment_date"),
+      base44.entities.AuditLog.filter({ entity_id: id }, "-created_date"),
+      base44.entities.PaymentMilestone.filter({ po_id: id }, "order_index"),
+    ]);
     setPayments(pays);
-    const allLogs = await base44.entities.AuditLog.filter({ entity_id: id }, "-created_date");
     setLogs(allLogs);
+    setMilestones(ms.filter((m) => !m.deleted));
   };
 
   const updateStatus = async (newStatus, action, remarks = "") => {
@@ -77,9 +88,31 @@ export default function PODetail() {
     refreshPO();
   };
 
-  const approvePO = () => {
-    const newStatus = po.outstanding_amount > 0 || po.grand_total > 0 ? "payment_pending" : "approved";
-    updateStatus(newStatus, "PO Approved", "Approved by Super Admin");
+  const approvePO = async () => {
+    const newStatus = po.grand_total > 0 ? "payment_pending" : "approved";
+    try {
+      const approvedDate = todayISO();
+      const updateData = { status: newStatus, rejection_reason: "", approved_date: approvedDate };
+      await base44.entities.PurchaseOrder.update(id, updateData);
+
+      // Recalculate milestone due dates with the approved_date set
+      const activeMs = milestones.filter((m) => m.status !== "cancelled" && m.status !== "paid");
+      const updatedPo = { ...po, approved_date: approvedDate };
+      for (const m of activeMs) {
+        const newDue = calculateDueDate({ ...m }, updatedPo);
+        if (newDue) {
+          await base44.entities.PaymentMilestone.update(m.id, {
+            due_date: newDue,
+            original_due_date: m.original_due_date || newDue,
+          });
+        }
+      }
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "PO Approved", po.status, newStatus, "Approved by Super Admin");
+      toast.success("PO Approved");
+      refreshPO();
+    } catch (err) {
+      toast.error("Approval failed");
+    }
   };
   const rejectPO = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("rejected", "PO Rejected", rejectionReason); setShowReject(false); };
   const sendBack = () => updateStatus("sent_back", "Sent Back for Revision", "Requires modification");
@@ -212,7 +245,8 @@ export default function PODetail() {
 
   const od = daysOverdue(po.due_date, po.outstanding_amount);
   const canApprove = isSuperAdmin && po.status === "pending_approval";
-  const canPay = isFinance && ["payment_pending", "partially_paid"].includes(po.status);
+  const hasSchedule = milestones.length > 0;
+  const canPay = isFinance && !hasSchedule && ["payment_pending", "partially_paid"].includes(po.status);
   const canEdit = false;
 
   return (
@@ -235,10 +269,22 @@ export default function PODetail() {
         </div>
       </div>
 
-      {od > 0 && po.outstanding_amount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700">
-          <Clock className="w-4 h-4" /> This PO is <strong>{od} days overdue</strong>. Outstanding: {formatINR(po.outstanding_amount)}
-        </div>
+      {hasSchedule ? (
+        milestones.filter((m) => {
+          if (m.status === "cancelled" || m.status === "paid") return false;
+          const odm = daysOverdue(m.due_date, m.outstanding_amount);
+          return odm > 0;
+        }).length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700">
+            <Clock className="w-4 h-4" /> {milestones.filter((m) => m.status !== "cancelled" && m.status !== "paid" && daysOverdue(m.due_date, m.outstanding_amount) > 0).length} milestone(s) are overdue.
+          </div>
+        )
+      ) : (
+        od > 0 && po.outstanding_amount > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700">
+            <Clock className="w-4 h-4" /> This PO is <strong>{od} days overdue</strong>. Outstanding: {formatINR(po.outstanding_amount)}
+          </div>
+        )
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -252,10 +298,10 @@ export default function PODetail() {
               <Info label="Category" value={PO_CATEGORY_LABELS[po.po_category]} />
               <Info label="PO Type" value={PO_TYPE_LABELS[po.po_type]} />
               <Info label="Department" value={po.department || "-"} />
-              <Info label="Due Date" value={formatDate(po.due_date)} />
               <Info label="Created By" value={po.created_by_name || "-"} />
               <Info label="Created On" value={formatDate(po.created_date)} />
-              <Info label="Payment Terms" value={po.payment_terms || "-"} />
+              <Info label="Approved On" value={formatDate(po.approved_date)} />
+              <Info label="Payment Schedule" value={milestones.length > 0 ? `${milestones.length} milestones` : "Not defined"} />
             </div>
             {po.description && <div className="mt-3 text-sm"><span className="text-slate-400">Description: </span><span className="text-slate-600">{po.description}</span></div>}
             {po.purpose && <div className="mt-1 text-sm"><span className="text-slate-400">Purpose: </span><span className="text-slate-600">{po.purpose}</span></div>}
@@ -301,6 +347,36 @@ export default function PODetail() {
               </div>
             </div>
           </Card>
+
+          {/* Payment Schedule */}
+          {milestones.length > 0 && (
+            <Card className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="w-4 h-4 text-indigo-500" />
+                <h3 className="font-semibold text-slate-800 text-sm">Payment Schedule</h3>
+                <span className="text-xs text-slate-400">{milestones.length} milestone(s)</span>
+              </div>
+              <ScheduleView po={po} milestones={milestones} payments={payments} userName={userName} isFinance={isFinance} isInstituteAdmin={isInstituteAdmin} onRefresh={refreshPO} />
+            </Card>
+          )}
+
+          {/* Trigger Events */}
+          {milestones.length > 0 && po.status !== "draft" && po.status !== "pending_approval" && (
+            <Card className="p-5">
+              <TriggerEventsPanel po={po} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin} />
+            </Card>
+          )}
+
+          {/* Payment Timeline */}
+          {milestones.length > 0 && (
+            <Card className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-4 h-4 text-slate-500" />
+                <h3 className="font-semibold text-slate-800 text-sm">Payment Timeline</h3>
+              </div>
+              <PaymentTimeline po={po} milestones={milestones} payments={payments} />
+            </Card>
+          )}
 
           {/* Vendor */}
           {vendor && (

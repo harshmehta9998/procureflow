@@ -1,0 +1,153 @@
+{
+  "name": "PaymentMilestone",
+  "type": "object",
+  "properties": {
+    "po_id": {
+      "type": "string",
+      "title": "Purchase Order ID"
+    },
+    "po_number": {
+      "type": "string",
+      "title": "PO Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "vendor_id": {
+      "type": "string",
+      "title": "Vendor ID"
+    },
+    "vendor_name": {
+      "type": "string",
+      "title": "Vendor Name"
+    },
+    "po_category": {
+      "type": "string",
+      "title": "PO Category"
+    },
+    "milestone_name": {
+      "type": "string",
+      "title": "Milestone Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "amount_type": {
+      "type": "string",
+      "enum": [
+        "fixed",
+        "percentage"
+      ],
+      "default": "fixed",
+      "title": "Amount Type"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Amount or Percentage"
+    },
+    "calculated_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Calculated Amount"
+    },
+    "trigger_type": {
+      "type": "string",
+      "title": "Trigger Type"
+    },
+    "custom_trigger_name": {
+      "type": "string",
+      "title": "Custom Trigger Name"
+    },
+    "trigger_event": {
+      "type": "string",
+      "title": "Trigger Event Key"
+    },
+    "offset_days": {
+      "type": "number",
+      "default": 0,
+      "title": "Offset Days"
+    },
+    "fixed_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Fixed Date"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+    },
+    "original_due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Original Due Date"
+    },
+    "override_reason": {
+      "type": "string",
+      "title": "Override Reason"
+    },
+    "override_by": {
+      "type": "string",
+      "title": "Override By"
+    },
+    "override_date": {
+      "type": "string",
+      "title": "Override Date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "waiting_for_trigger",
+        "due_today",
+        "upcoming",
+        "partially_paid",
+        "paid",
+        "overdue",
+        "cancelled"
+      ],
+      "default": "pending",
+      "title": "Status"
+    },
+    "actual_trigger_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Actual Trigger Date"
+    },
+    "amount_paid": {
+      "type": "number",
+      "default": 0,
+      "title": "Amount Paid"
+    },
+    "outstanding_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Outstanding Amount"
+    },
+    "remarks": {
+      "type": "string",
+      "title": "Remarks"
+    },
+    "order_index": {
+      "type": "number",
+      "default": 0,
+      "title": "Order Index"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "po_id",
+    "milestone_name",
+    "trigger_type"
+  ]
+}
