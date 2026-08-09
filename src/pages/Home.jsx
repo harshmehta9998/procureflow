@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatCard } from "@/components/po/Shared";
 import { StatusBadge, PaymentBadge } from "@/components/po/Shared";
+import FinanceHomePanel from "@/components/finance/FinanceHomePanel";
 import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS } from "@/lib/poUtils";
 import {
   FileText, Clock, CheckCircle, XCircle, Wallet, TrendingUp, AlertTriangle,
@@ -124,7 +125,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Charts */}
+      {/* Charts — hidden for finance (milestone-focused view below) */}
+      {!isFinance && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-800 mb-4 text-sm">{isSuperAdmin ? "Monthly Spend Trend" : "Monthly Spend"}</h3>
@@ -160,8 +162,13 @@ export default function Home() {
           )}
         </div>
       </div>
+      )}
 
-      {/* Recent POs */}
+      {/* Finance: milestone-focused panel */}
+      {isFinance && <FinanceHomePanel />}
+
+      {/* Recent POs — only for non-finance */}
+      {!isFinance && (
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
           <h3 className="font-semibold text-slate-800 text-sm">Recent Purchase Orders</h3>
@@ -198,6 +205,7 @@ export default function Home() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
