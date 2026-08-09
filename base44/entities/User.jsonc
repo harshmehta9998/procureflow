@@ -14,11 +14,25 @@
     },
     "institute_id": {
       "type": "string",
-      "title": "Institute ID"
+      "title": "Primary Institute ID"
     },
     "institute_name": {
       "type": "string",
-      "title": "Institute Name"
+      "title": "Primary Institute Name"
+    },
+    "institute_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Mapped Institute IDs"
+    },
+    "institute_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Mapped Institute Names"
     }
   }
 }

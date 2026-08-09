@@ -15,15 +15,17 @@ const navItems = [
   { label: "Finance", path: "/finance", icon: Wallet, roles: ["finance", "super_admin"] },
   { label: "Vendors", path: "/vendors", icon: Users, roles: ["admin", "super_admin", "finance"] },
   { label: "Institutes", path: "/institutes", icon: Building2, roles: ["super_admin"] },
+  { label: "User Management", path: "/user-management", icon: Users, roles: ["super_admin"] },
   { label: "Reports", path: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance"] },
   { label: "Audit Log", path: "/audit-log", icon: ClipboardList, roles: ["super_admin"] },
 ];
 
 export default function Layout() {
-  const { role, userName, setDemoRole, isSuperAdmin, isFinance, isInstituteAdmin, instituteName } = useUserRole();
+  const { role, userName, setDemoRole, isSuperAdmin, isFinance, isInstituteAdmin, instituteName, instituteIds, instituteNames, hasMultipleInstitutes, activeInstituteId, setActiveInstituteId } = useUserRole();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [instOpen, setInstOpen] = useState(false);
 
   const visibleItems = navItems.filter((i) => i.roles.includes(role));
 
@@ -93,7 +95,36 @@ export default function Layout() {
               />
             </div>
           </div>
-          <RoleSwitcher demoRole={role} setDemoRole={setDemoRole} />
+          <div className="flex items-center gap-2">
+            {hasMultipleInstitutes && (
+              <div className="relative">
+                <button
+                  onClick={() => setInstOpen(!instOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  {instituteNames[instituteIds.indexOf(activeInstituteId)] || "Select Institute"}
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {instOpen && (
+                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Active Institute</div>
+                    {instituteIds.map((id, i) => (
+                      <button
+                        key={id}
+                        onClick={() => { setActiveInstituteId(id); setInstOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 ${activeInstituteId === id ? "text-slate-900 font-semibold" : "text-slate-600"}`}
+                      >
+                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        {instituteNames[i] || id}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <RoleSwitcher demoRole={role} setDemoRole={setDemoRole} />
+          </div>
         </header>
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
           <Outlet />

@@ -194,3 +194,22 @@ export const isEventCompleted = (eventKey, po, milestone) => {
   const date = getEventDate(eventKey, po, milestone);
   return !!date;
 };
+
+// Recalculate due dates for all active milestones based on current PO event dates.
+// Returns an array of { id, due_date, original_due_date } for milestones whose due date changed.
+export const recalculateMilestoneDueDates = (milestones, po) => {
+  const updates = [];
+  for (const m of (milestones || [])) {
+    if (m.status === "cancelled" || m.status === "paid") continue;
+    const newDue = calculateDueDate(m, po);
+    if (newDue && newDue !== m.due_date) {
+      updates.push({
+        id: m.id,
+        due_date: newDue,
+        original_due_date: m.original_due_date || newDue,
+        outstanding_amount: m.outstanding_amount ?? m.calculated_amount ?? 0,
+      });
+    }
+  }
+  return updates;
+};

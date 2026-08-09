@@ -18,6 +18,7 @@ import Institutes from '@/pages/Institutes';
 import Finance from '@/pages/Finance';
 import Reports from '@/pages/Reports';
 import AuditLogPage from '@/pages/AuditLog';
+import UserManagement from '@/pages/UserManagement';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -56,6 +57,7 @@ const AuthenticatedApp = () => {
         <Route path="/finance" element={<Finance />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
+        <Route path="/user-management" element={<UserManagement />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

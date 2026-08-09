@@ -363,7 +363,7 @@ export default function PODetail() {
           {/* Trigger Events */}
           {milestones.length > 0 && po.status !== "draft" && po.status !== "pending_approval" && (
             <Card className="p-5">
-              <TriggerEventsPanel po={po} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin} />
+              <TriggerEventsPanel po={po} milestones={milestones} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin} userName={userName} />
             </Card>
           )}
 
