@@ -23,9 +23,9 @@ export default function PurchaseOrders() {
     vendor: "",
     poNumber: "",
     category: searchParams.get("category") || "",
-    type: "",
+    type: searchParams.get("type") || "",
     status: searchParams.get("status") || "",
-    paymentStatus: "",
+    paymentStatus: searchParams.get("paymentStatus") || "",
     dateFrom: "",
     dateTo: "",
   });

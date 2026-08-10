@@ -64,20 +64,20 @@ export default function FinanceHomePanel() {
     <div className="space-y-4">
       {/* Summary banners */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gradient-to-br from-red-50 to-red-50/30 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+        <div onClick={() => window.location.href = "/finance"} className="bg-gradient-to-br from-red-50 to-red-50/30 border border-red-200 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow">
           <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
           <div>
             <div className="text-xs text-red-600 font-medium uppercase tracking-wide">Overdue Payments</div>
             <div className="text-lg font-bold text-red-700">{formatINR(totalOverdue)}</div>
-            <div className="text-[11px] text-red-500">{overdue.length} milestone{overdue.length !== 1 ? "s" : ""} past due</div>
+            <div className="text-[11px] text-red-500">{overdue.length} milestone{overdue.length !== 1 ? "s" : ""} past due · Click to view</div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-amber-50 to-amber-50/30 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+        <div onClick={() => window.location.href = "/finance"} className="bg-gradient-to-br from-amber-50 to-amber-50/30 border border-amber-200 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow">
           <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center"><Calendar className="w-5 h-5 text-amber-600" /></div>
           <div>
             <div className="text-xs text-amber-600 font-medium uppercase tracking-wide">Due in 30 Days</div>
             <div className="text-lg font-bold text-amber-700">{formatINR(totalUpcoming)}</div>
-            <div className="text-[11px] text-amber-500">{upcoming.length} milestone{upcoming.length !== 1 ? "s" : ""} upcoming</div>
+            <div className="text-[11px] text-amber-500">{upcoming.length} milestone{upcoming.length !== 1 ? "s" : ""} upcoming · Click to view</div>
           </div>
         </div>
       </div>

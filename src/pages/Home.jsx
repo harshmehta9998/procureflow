@@ -4,8 +4,9 @@ import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatCard } from "@/components/po/Shared";
 import { StatusBadge, PaymentBadge } from "@/components/po/Shared";
+import { BreakdownPair } from "@/components/po/DashboardBreakdown";
 import FinanceHomePanel from "@/components/finance/FinanceHomePanel";
-import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS } from "@/lib/poUtils";
+import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS } from "@/lib/poUtils";
 import {
   FileText, Clock, CheckCircle, XCircle, Wallet, TrendingUp, AlertTriangle,
   Building2, PlusCircle, IndianRupee
@@ -46,8 +47,18 @@ export default function Home() {
     paymentPending: pos.filter((p) => p.status === "payment_pending").length,
   };
 
-  const totalCapex = pos.filter((p) => p.po_category === "capex").reduce((s, p) => s + (p.grand_total || 0), 0);
-  const totalOpex = pos.filter((p) => p.po_category === "opex").reduce((s, p) => s + (p.grand_total || 0), 0);
+  const go = (params) => { window.location.href = "/purchase-orders" + (params ? "?" + new URLSearchParams(params).toString() : ""); };
+  const goFinance = () => { window.location.href = "/finance"; };
+
+  const capexPos = pos.filter((p) => p.po_category === "capex");
+  const opexPos = pos.filter((p) => p.po_category === "opex");
+  const standardPos = pos.filter((p) => p.po_type === "standard");
+  const openPos = pos.filter((p) => p.po_type === "open");
+  const totalCapex = capexPos.reduce((s, p) => s + (p.grand_total || 0), 0);
+  const totalOpex = opexPos.reduce((s, p) => s + (p.grand_total || 0), 0);
+  const pendingCapex = pos.filter((p) => p.status === "pending_approval" && p.po_category === "capex");
+  const pendingOpex = pos.filter((p) => p.status === "pending_approval" && p.po_category === "opex");
+  const approvedPos = pos.filter((p) => ["approved", "payment_pending", "partially_paid", "fully_paid", "closed"].includes(p.status));
   const totalLiability = pos.reduce((s, p) => s + (p.outstanding_amount || 0), 0);
   const overdueAmount = pos
     .filter((p) => daysOverdue(p.due_date, p.outstanding_amount) > 0)
@@ -96,32 +107,74 @@ export default function Home() {
       {/* Stat cards */}
       {isFinance ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" />
-          <StatCard label="Payment Pending" value={counts.paymentPending} icon={Clock} accent="purple" />
-          <StatCard label="Partially Paid" value={counts.partiallyPaid} icon={Wallet} accent="indigo" />
-          <StatCard label="Fully Paid" value={counts.fullyPaid} icon={CheckCircle} accent="emerald" />
-          <StatCard label="Outstanding" value={formatINR(totalLiability)} icon={AlertTriangle} accent="amber" />
-          <StatCard label="Overdue" value={formatINR(overdueAmount)} icon={AlertTriangle} accent="red" />
+          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" onClick={() => go()} />
+          <StatCard label="Payment Pending" value={counts.paymentPending} icon={Clock} accent="purple" onClick={() => go({ status: "payment_pending" })} />
+          <StatCard label="Partially Paid" value={counts.partiallyPaid} icon={Wallet} accent="indigo" onClick={() => go({ status: "partially_paid" })} />
+          <StatCard label="Fully Paid" value={counts.fullyPaid} icon={CheckCircle} accent="emerald" onClick={() => go({ status: "fully_paid" })} />
+          <StatCard label="Outstanding" value={formatINR(totalLiability)} icon={AlertTriangle} accent="amber" onClick={goFinance} />
+          <StatCard label="Overdue" value={formatINR(overdueAmount)} icon={AlertTriangle} accent="red" onClick={goFinance} />
         </div>
       ) : isSuperAdmin ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" />
-          <StatCard label="Total Capex" value={formatINR(totalCapex)} icon={TrendingUp} accent="blue" />
-          <StatCard label="Total Opex" value={formatINR(totalOpex)} icon={IndianRupee} accent="purple" />
-          <StatCard label="Total Liability" value={formatINR(totalLiability)} icon={AlertTriangle} accent="amber" />
-          <StatCard label="Overdue" value={formatINR(overdueAmount)} icon={AlertTriangle} accent="red" />
-          <StatCard label="Pending Approval" value={counts.pending} icon={Clock} accent="amber" onClick={() => window.location.href = "/purchase-orders?status=pending_approval"} />
+          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" onClick={() => go()} />
+          <StatCard label="Total Capex" value={formatINR(totalCapex)} icon={TrendingUp} accent="blue" onClick={() => go({ category: "capex" })} />
+          <StatCard label="Total Opex" value={formatINR(totalOpex)} icon={IndianRupee} accent="purple" onClick={() => go({ category: "opex" })} />
+          <StatCard label="Total Liability" value={formatINR(totalLiability)} icon={AlertTriangle} accent="amber" onClick={goFinance} />
+          <StatCard label="Overdue" value={formatINR(overdueAmount)} icon={AlertTriangle} accent="red" onClick={goFinance} />
+          <StatCard label="Pending Approval" value={counts.pending} icon={Clock} accent="amber" onClick={() => go({ status: "pending_approval" })} />
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" />
-          <StatCard label="Drafts" value={counts.draft} icon={FileText} accent="slate" />
-          <StatCard label="Pending" value={counts.pending} icon={Clock} accent="amber" />
-          <StatCard label="Approved" value={counts.approved} icon={CheckCircle} accent="blue" />
-          <StatCard label="Rejected" value={counts.rejected} icon={XCircle} accent="red" />
-          <StatCard label="Pay Pending" value={counts.paymentPending} icon={Wallet} accent="purple" />
-          <StatCard label="Partial Paid" value={counts.partiallyPaid} icon={Wallet} accent="indigo" />
-          <StatCard label="Fully Paid" value={counts.fullyPaid} icon={CheckCircle} accent="emerald" />
+          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" onClick={() => go()} />
+          <StatCard label="Drafts" value={counts.draft} icon={FileText} accent="slate" onClick={() => go({ status: "draft" })} />
+          <StatCard label="Pending" value={counts.pending} icon={Clock} accent="amber" onClick={() => go({ status: "pending_approval" })} />
+          <StatCard label="Approved" value={counts.approved} icon={CheckCircle} accent="blue" onClick={() => go({ status: "approved" })} />
+          <StatCard label="Rejected" value={counts.rejected} icon={XCircle} accent="red" onClick={() => go({ status: "rejected" })} />
+          <StatCard label="Pay Pending" value={counts.paymentPending} icon={Wallet} accent="purple" onClick={() => go({ status: "payment_pending" })} />
+          <StatCard label="Partial Paid" value={counts.partiallyPaid} icon={Wallet} accent="indigo" onClick={() => go({ status: "partially_paid" })} />
+          <StatCard label="Fully Paid" value={counts.fullyPaid} icon={CheckCircle} accent="emerald" onClick={() => go({ status: "fully_paid" })} />
+        </div>
+      )}
+
+      {/* Breakdowns — Super Admin */}
+      {isSuperAdmin && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <BreakdownPair
+            title="Pending Approvals"
+            left={{ label: "Capex Pending", count: pendingCapex.length, amount: formatINR(pendingCapex.reduce((s, p) => s + (p.grand_total || 0), 0)), accent: "blue", onClick: () => go({ status: "pending_approval", category: "capex" }) }}
+            right={{ label: "Opex Pending", count: pendingOpex.length, amount: formatINR(pendingOpex.reduce((s, p) => s + (p.grand_total || 0), 0)), accent: "purple", onClick: () => go({ status: "pending_approval", category: "opex" }) }}
+          />
+          <BreakdownPair
+            title="Capex vs Opex"
+            left={{ label: "Capex", count: capexPos.length, amount: formatINR(totalCapex), accent: "blue", onClick: () => go({ category: "capex" }) }}
+            right={{ label: "Opex", count: opexPos.length, amount: formatINR(totalOpex), accent: "purple", onClick: () => go({ category: "opex" }) }}
+          />
+          <BreakdownPair
+            title="Standard vs Open PO"
+            left={{ label: "Standard PO", count: standardPos.length, accent: "emerald", onClick: () => go({ type: "standard" }) }}
+            right={{ label: "Open PO", count: openPos.length, accent: "amber", onClick: () => go({ type: "open" }) }}
+          />
+        </div>
+      )}
+
+      {/* Breakdowns — Institute Admin */}
+      {isInstituteAdmin && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <BreakdownPair
+            title="Approval Status"
+            left={{ label: "Approved", count: approvedPos.length, amount: formatINR(approvedPos.reduce((s, p) => s + (p.grand_total || 0), 0)), accent: "emerald", onClick: () => go({ status: "approved" }) }}
+            right={{ label: "Pending Approval", count: counts.pending, amount: formatINR(pos.filter((p) => p.status === "pending_approval").reduce((s, p) => s + (p.grand_total || 0), 0)), accent: "amber", onClick: () => go({ status: "pending_approval" }) }}
+          />
+          <BreakdownPair
+            title="Capex vs Opex"
+            left={{ label: "Capex", count: capexPos.length, amount: formatINR(totalCapex), accent: "blue", onClick: () => go({ category: "capex" }) }}
+            right={{ label: "Opex", count: opexPos.length, amount: formatINR(totalOpex), accent: "purple", onClick: () => go({ category: "opex" }) }}
+          />
+          <BreakdownPair
+            title="Standard vs Open PO"
+            left={{ label: "Standard PO", count: standardPos.length, accent: "emerald", onClick: () => go({ type: "standard" }) }}
+            right={{ label: "Open PO", count: openPos.length, accent: "amber", onClick: () => go({ type: "open" }) }}
+          />
         </div>
       )}
 
@@ -182,7 +235,7 @@ export default function Home() {
                 <th className="text-left px-5 py-2.5 font-medium">Title</th>
                 {isSuperAdmin && <th className="text-left px-5 py-2.5 font-medium">Institute</th>}
                 <th className="text-left px-5 py-2.5 font-medium">Vendor</th>
-                <th className="text-left px-5 py-2.5 font-medium">Type</th>
+                <th className="text-left px-5 py-2.5 font-medium">Cat / Type</th>
                 <th className="text-right px-5 py-2.5 font-medium">Amount</th>
                 <th className="text-left px-5 py-2.5 font-medium">Status</th>
                 <th className="text-left px-5 py-2.5 font-medium">Payment</th>
@@ -195,7 +248,7 @@ export default function Home() {
                   <td className="px-5 py-3 text-slate-600 max-w-xs truncate">{p.po_title}</td>
                   {isSuperAdmin && <td className="px-5 py-3 text-slate-600">{p.institute_name}</td>}
                   <td className="px-5 py-3 text-slate-600">{p.vendor_name}</td>
-                  <td className="px-5 py-3"><span className="text-xs text-slate-500">{PO_CATEGORY_LABELS[p.po_category]}</span></td>
+                  <td className="px-5 py-3"><div className="text-xs"><div className="text-slate-700 font-medium">{PO_CATEGORY_LABELS[p.po_category]}</div><div className="text-slate-400">{PO_TYPE_LABELS[p.po_type]}</div></div></td>
                   <td className="px-5 py-3 text-right font-medium text-slate-800">{formatINR(p.grand_total)}</td>
                   <td className="px-5 py-3"><StatusBadge status={p.status} /></td>
                   <td className="px-5 py-3"><PaymentBadge status={p.payment_status} /></td>
