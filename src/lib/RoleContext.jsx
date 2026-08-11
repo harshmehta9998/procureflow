@@ -8,8 +8,15 @@ export const useUserRole = () => useContext(RoleContext);
 export const RoleProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [demoRole, setDemoRole] = useState(null);
+  const [demoRole, setDemoRoleState] = useState(() => {
+    try { return localStorage.getItem("pf_demo_role") || null; } catch { return null; }
+  });
   const [activeInstituteId, setActiveInstituteId] = useState(null);
+
+  const setDemoRole = (r) => {
+    setDemoRoleState(r);
+    try { if (r) localStorage.setItem("pf_demo_role", r); else localStorage.removeItem("pf_demo_role"); } catch {}
+  };
 
   useEffect(() => {
     (async () => {

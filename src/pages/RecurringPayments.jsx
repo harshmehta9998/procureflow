@@ -104,7 +104,7 @@ export default function RecurringPayments() {
           <h1 className="text-2xl font-bold text-slate-800">Recurring Payments</h1>
           <p className="text-sm text-slate-500 mt-0.5">{visibleRecurring.length} schedules · {visibleInstances.length} installments</p>
         </div>
-        {isInstituteAdmin && <Button size="sm" className="bg-slate-900" onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-1.5" /> New Recurring Payment</Button>}
+        {(isFinance || isSuperAdmin) && <Button size="sm" className="bg-slate-900" onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-1.5" /> New Recurring Payment</Button>}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -178,7 +178,7 @@ export default function RecurringPayments() {
         </div>
       )}
 
-      {showCreate && <CreateRecurringModal institutes={institutes} vendors={vendors} userName={userName} instituteId={instituteId} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchData(); }} />}
+      {showCreate && <CreateRecurringModal institutes={institutes} vendors={vendors} userName={userName} instituteId={instituteId} creatorRole={role} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchData(); }} />}
     </div>
   );
 }
@@ -216,7 +216,7 @@ function InstanceRow({ inst, canPay, onPay }) {
   );
 }
 
-function CreateRecurringModal({ institutes, vendors, userName, instituteId, onClose, onCreated }) {
+function CreateRecurringModal({ institutes, vendors, userName, instituteId, creatorRole, onClose, onCreated }) {
   const [form, setForm] = useState({
     institute_id: instituteId || "",
     payment_category: "rent",
@@ -249,7 +249,10 @@ function CreateRecurringModal({ institutes, vendors, userName, instituteId, onCl
       const inst = institutes.find((i) => i.id === form.institute_id);
       const ven = vendors.find((v) => v.id === form.payee_vendor_id);
       const num = await generateRecurringNumber(inst.institute_code);
-      await base44.entities.RecurringPayment.create({
+      // Finance-created recurring payments require Super Admin confirmation;
+      // Super Admin-created ones activate immediately with installments generated.
+      let status = submit ? (creatorRole === "super_admin" ? "active" : "pending_super_admin") : "draft";
+      const created = await base44.entities.RecurringPayment.create({
         ...form,
         recurring_number: num,
         institute_name: inst.institute_name,
@@ -258,9 +261,21 @@ function CreateRecurringModal({ institutes, vendors, userName, instituteId, onCl
         num_installments: schedule.length,
         total_amount: schedule.reduce((s, x) => s + x.amount, 0),
         created_by_name: userName,
-        status: submit ? "pending_centre_head" : "draft",
+        status,
+        ...(creatorRole === "super_admin" && submit
+          ? { super_admin_approved_by: userName, super_admin_approved_date: todayISO() }
+          : {}),
       });
-      toast.success(submit ? "Submitted for approval" : "Draft saved");
+      if (submit && creatorRole === "super_admin" && schedule.length > 0) {
+        await base44.entities.RecurringPaymentInstance.bulkCreate(schedule.map((s) => ({
+          recurring_id: created.id, recurring_number: num, institute_id: inst.id, institute_name: inst.institute_name,
+          payee_vendor_name: ven?.vendor_name || "", payment_category: form.payment_category, frequency: form.frequency,
+          installment_number: s.installment_number, due_date: s.due_date, amount: s.amount, outstanding_amount: s.amount,
+          status: "pending", description: form.description || "",
+        })));
+      }
+      await logAudit("RecurringPayment", created.id, num, userName, submit ? "Recurring Payment Submitted" : "Recurring Payment Draft", "", status, creatorRole === "super_admin" ? "Auto-approved" : "Awaiting Super Admin");
+      toast.success(submit ? (creatorRole === "super_admin" ? "Recurring payment created & activated" : "Submitted for Super Admin approval") : "Draft saved");
       onCreated();
     } catch (err) { toast.error(err.message || "Failed"); } finally { setSaving(false); }
   };

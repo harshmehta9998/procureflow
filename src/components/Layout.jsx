@@ -25,7 +25,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Payment Initiatives", path: "/payment-initiatives", icon: Zap, roles: ["admin", "centre_head", "super_admin", "finance"] },
       { label: "Request for Payment", path: "/payment-requests", icon: Receipt, roles: ["admin", "centre_head", "super_admin", "finance"] },
-      { label: "Recurring Payments", path: "/recurring-payments", icon: CalendarClock, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "Recurring Payments", path: "/recurring-payments", icon: CalendarClock, roles: ["super_admin", "finance"] },
       { label: "Payment History", path: "/payment-history", icon: History, roles: ["super_admin", "finance", "centre_head"] },
     ],
   },

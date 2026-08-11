@@ -1,17 +1,36 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { base44 } from "@/api/base44Client";
-import { TRIGGER_EVENTS, isEventCompleted, recalculateMilestoneDueDates } from "@/lib/paymentScheduleUtils";
-import { formatDate, todayISO, logAudit } from "@/lib/poUtils";
-import { CheckCircle, Circle, Zap, RefreshCw } from "lucide-react";
+import { TRIGGER_EVENTS, isEventCompleted, recalculateMilestoneDueDates, calculateDueDate } from "@/lib/paymentScheduleUtils";
+import { formatINR, formatDate, todayISO, logAudit } from "@/lib/poUtils";
+import { CheckCircle, Circle, Zap, RefreshCw, AlertTriangle, PackageCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate, canEdit, userName }) {
   const [customEvent, setCustomEvent] = useState("");
   const [saving, setSaving] = useState(null);
   const [recalculating, setRecalculating] = useState(false);
+  const [pendingEvent, setPendingEvent] = useState(null);
+
+  const isDeliveryRelated = (eventKey) => ["delivery", "material_dispatched"].includes(eventKey);
+
+  // Preview which milestones would be affected if this event is marked now
+  const affectedMilestones = useMemo(() => {
+    if (!pendingEvent) return [];
+    const event = TRIGGER_EVENTS.find((e) => e.value === pendingEvent);
+    if (!event) return [];
+    const previewPo = { ...po, [event.poField]: todayISO() };
+    return milestones
+      .filter((m) => m.status !== "cancelled" && m.status !== "paid")
+      .map((m) => {
+        const oldDue = m.due_date;
+        const newDue = calculateDueDate({ ...m }, previewPo);
+        return { m, oldDue, newDue, changed: newDue && newDue !== oldDue };
+      })
+      .filter((x) => x.changed);
+  }, [pendingEvent, po, milestones]);
 
   // Update PO event date, then recalculate & persist all affected milestone due dates.
   const applyEventChange = async (eventKey, poUpdate, auditLabel) => {
@@ -37,14 +56,30 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     }
   };
 
-  const toggleEvent = async (eventKey) => {
+  const toggleEvent = (eventKey) => {
     if (!canEdit) return;
     const event = TRIGGER_EVENTS.find((e) => e.value === eventKey);
     if (!event || event.auto) return;
     const isDone = isEventCompleted(eventKey, po);
-    const poUpdate = isDone ? { [event.poField]: "" } : { [event.poField]: todayISO() };
-    await applyEventChange(eventKey, poUpdate, isDone ? `${event.label} Unmarked` : `${event.label} Marked`);
-    toast.success(isDone ? `${event.label} unmarked` : `${event.label} marked complete`);
+    if (isDone) {
+      // Unmarking is safe — no confirmation needed
+      applyEventChange(eventKey, { [event.poField]: "" }, `${event.label} Unmarked`).then(() =>
+        toast.success(`${event.label} unmarked`)
+      );
+    } else {
+      // Marking requires verification/confirmation
+      setPendingEvent(eventKey);
+    }
+  };
+
+  const confirmPendingEvent = async () => {
+    if (!pendingEvent) return;
+    const event = TRIGGER_EVENTS.find((e) => e.value === pendingEvent);
+    const poUpdate = { [event.poField]: todayISO() };
+    const key = pendingEvent;
+    setPendingEvent(null);
+    await applyEventChange(key, poUpdate, `${event.label} Marked`);
+    toast.success(`${event.label} marked complete`);
   };
 
   const setCustomEventDate = async (date) => {
@@ -84,6 +119,8 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
       setRecalculating(false);
     }
   };
+
+  const pendingEventObj = pendingEvent ? TRIGGER_EVENTS.find((e) => e.value === pendingEvent) : null;
 
   return (
     <div className="space-y-3">
@@ -144,6 +181,66 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
           <div className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> {po.custom_event_name || "Custom Event"} — {formatDate(po.custom_event_date)}</div>
         )}
       </div>
+
+      {/* Verification / Confirmation Modal */}
+      {pendingEventObj && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPendingEvent(null)}>
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center"><AlertTriangle className="w-5 h-5 text-amber-600" /></div>
+              <div>
+                <h3 className="font-semibold text-slate-800">Confirm Trigger Event</h3>
+                <p className="text-xs text-slate-500">Verify before marking as complete</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="font-medium text-slate-800">{pendingEventObj.label}</div>
+                <div className="text-xs text-slate-500 mt-0.5">Will be marked complete on {formatDate(todayISO())}.</div>
+              </div>
+
+              {/* Stock / quantity verification for delivery-related events */}
+              {isDeliveryRelated(pendingEventObj.value) && (po.items || []).length > 0 && (
+                <div className="border border-amber-200 rounded-lg p-3 bg-amber-50/50">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 mb-2"><PackageCheck className="w-3.5 h-3.5" /> Verify Stock / Quantities</div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {po.items.map((it, i) => (
+                      <div key={i} className="flex justify-between text-xs text-slate-600">
+                        <span className="truncate pr-2">{it.item_name || "Item"}</span>
+                        <span className="font-medium whitespace-nowrap">{it.quantity} {it.unit} · {formatINR(it.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-amber-600 mt-2">Confirm that the received quantity & quality match the PO before proceeding.</div>
+                </div>
+              )}
+
+              {/* Affected milestones */}
+              <div>
+                <div className="text-xs font-medium text-slate-600 mb-1">Milestone due dates to be recalculated:</div>
+                {affectedMilestones.length === 0 ? (
+                  <div className="text-xs text-slate-400">No milestone due dates will change.</div>
+                ) : (
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {affectedMilestones.map((x) => (
+                      <div key={x.m.id} className="flex justify-between text-xs bg-slate-50 rounded px-2 py-1">
+                        <span className="truncate pr-2 text-slate-600">{x.m.milestone_name}</span>
+                        <span className="whitespace-nowrap text-slate-500">{x.oldDue ? formatDate(x.oldDue) : "—"} → <span className="font-medium text-slate-700">{formatDate(x.newDue)}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <Button variant="outline" className="flex-1" onClick={() => setPendingEvent(null)}>Cancel</Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={confirmPendingEvent}><CheckCircle className="w-4 h-4 mr-1.5" /> Confirm & Mark</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

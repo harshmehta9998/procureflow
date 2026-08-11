@@ -108,16 +108,28 @@ export default function PODetail() {
   };
 
   const approvePO = async () => {
-    // Centre Head approval → sends PO to Finance (payment_pending)
-    const newStatus = po.grand_total > 0 ? "payment_pending" : "approved";
+    // Centre Head approval → forwards PO to Super Admin for final approval
+    try {
+      await base44.entities.PurchaseOrder.update(id, {
+        status: "pending_super_admin", rejection_reason: "",
+        centre_head_status: "approved", centre_head_approved_by: userName, centre_head_approved_date: todayISO(),
+      });
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "Centre Head Approved PO", po.status, "pending_super_admin", "Approved by Centre Head, forwarded to Super Admin");
+      toast.success("PO approved by Centre Head & sent to Super Admin");
+      refreshPO();
+    } catch (err) {
+      toast.error("Approval failed");
+    }
+  };
+  const approveSuperAdmin = async () => {
+    // Super Admin final approval → sends PO to Finance (payment_pending) & finalises approval date
     try {
       const approvedDate = todayISO();
-      const updateData = {
-        status: newStatus, rejection_reason: "", approved_date: approvedDate,
-        centre_head_status: "approved", centre_head_approved_by: userName, centre_head_approved_date: approvedDate,
+      await base44.entities.PurchaseOrder.update(id, {
+        status: "payment_pending", approved_date: approvedDate,
+        super_admin_status: "approved", super_admin_approved_by: userName, super_admin_approved_date: approvedDate,
         outstanding_amount: po.grand_total || 0,
-      };
-      await base44.entities.PurchaseOrder.update(id, updateData);
+      });
       const activeMs = milestones.filter((m) => m.status !== "cancelled" && m.status !== "paid");
       const updatedPo = { ...po, approved_date: approvedDate };
       for (const m of activeMs) {
@@ -129,7 +141,7 @@ export default function PODetail() {
           });
         }
       }
-      await logAudit("PurchaseOrder", id, po.po_number, userName, "Centre Head Approved PO", po.status, newStatus, "Approved by Centre Head");
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "Super Admin Approved PO", po.status, "payment_pending", "Approved by Super Admin, sent to Finance");
       toast.success("PO approved & sent to Finance");
       refreshPO();
     } catch (err) {
@@ -137,6 +149,7 @@ export default function PODetail() {
     }
   };
   const rejectPO = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("centre_head_rejected", "Centre Head Rejected", rejectionReason); setShowReject(false); };
+  const rejectSuperAdmin = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("super_admin_rejected", "Super Admin Rejected", rejectionReason); setShowReject(false); };
   const sendBack = () => updateStatus("sent_back", "Sent Back for Revision", "Requires modification");
   const closePO = () => updateStatus("closed", "PO Closed", "Closed by Finance");
 
@@ -335,12 +348,13 @@ export default function PODetail() {
 
   const od = daysOverdue(po.due_date, po.outstanding_amount);
   const canApprove = (isCentreHead || isSuperAdmin) && po.status === "pending_centre_head";
+  const canApproveSuper = isSuperAdmin && po.status === "pending_super_admin";
   const hasSchedule = milestones.length > 0;
-  const canPay = isFinance && !hasSchedule && ["payment_pending", "partially_paid"].includes(po.status);
+  const canPay = (isFinance || isSuperAdmin) && !hasSchedule && ["payment_pending", "partially_paid"].includes(po.status);
   const canEdit = false;
   const canCancel = isSuperAdmin && !["cancelled", "closed", "fully_paid"].includes(po.status) && !po.is_amendment;
-  const canAmend = isSuperAdmin && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
-  const canReceiveDelivery = isInstituteAdmin && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
+  const canAmend = isSuperAdmin && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid", "pending_super_admin"].includes(po.status);
+  const canReceiveDelivery = (isInstituteAdmin || isSuperAdmin) && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -456,7 +470,7 @@ export default function PODetail() {
           {/* Trigger Events */}
           {milestones.length > 0 && po.status !== "draft" && po.status !== "pending_approval" && (
             <Card className="p-5">
-              <TriggerEventsPanel po={po} milestones={milestones} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin} userName={userName} />
+              <TriggerEventsPanel po={po} milestones={milestones} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin || isSuperAdmin} userName={userName} />
             </Card>
           )}
 
@@ -508,7 +522,7 @@ export default function PODetail() {
             <h3 className="font-semibold text-slate-800 text-sm mb-3">Actions</h3>
             {canApprove && (
               <div className="space-y-2">
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={approvePO}><CheckCircle className="w-4 h-4 mr-1.5" /> Approve PO</Button>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={approvePO}><CheckCircle className="w-4 h-4 mr-1.5" /> Approve PO (Centre Head)</Button>
                 <Button variant="outline" className="w-full border-amber-200 text-amber-700" onClick={sendBack}><RotateCcw className="w-4 h-4 mr-1.5" /> Send Back for Revision</Button>
                 {!showReject ? (
                   <Button variant="outline" className="w-full border-red-200 text-red-600" onClick={() => setShowReject(true)}><XCircle className="w-4 h-4 mr-1.5" /> Reject PO</Button>
@@ -523,10 +537,27 @@ export default function PODetail() {
                 )}
               </div>
             )}
+            {canApproveSuper && (
+              <div className="space-y-2">
+                <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">Centre Head approved — awaiting your final approval.</div>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={approveSuperAdmin}><CheckCircle className="w-4 h-4 mr-1.5" /> Approve & Send to Finance</Button>
+                {!showReject ? (
+                  <Button variant="outline" className="w-full border-red-200 text-red-600" onClick={() => setShowReject(true)}><XCircle className="w-4 h-4 mr-1.5" /> Reject PO</Button>
+                ) : (
+                  <div className="space-y-2 p-2 border border-red-200 rounded-lg bg-red-50">
+                    <Textarea placeholder="Rejection reason..." value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} rows={2} />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-red-600 flex-1" onClick={rejectSuperAdmin}>Confirm Reject</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowReject(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {canPay && (
               <Button className="w-full bg-slate-900" onClick={() => setShowPayment(!showPayment)}><Wallet className="w-4 h-4 mr-1.5" /> Record Payment</Button>
             )}
-            {isFinance && po.status === "fully_paid" && (
+            {(isFinance || isSuperAdmin) && po.status === "fully_paid" && (
               <Button className="w-full bg-slate-700" onClick={closePO}><CheckCircle className="w-4 h-4 mr-1.5" /> Close PO</Button>
             )}
             {canReceiveDelivery && (
@@ -538,7 +569,7 @@ export default function PODetail() {
             {canCancel && (
               <Button variant="outline" className="w-full border-rose-200 text-rose-600" onClick={() => setShowCancel(true)}><Ban className="w-4 h-4 mr-1.5" /> Cancel PO</Button>
             )}
-            {!canApprove && !canPay && !canCancel && !canAmend && !canReceiveDelivery && po.status !== "fully_paid" && (
+            {!canApprove && !canApproveSuper && !canPay && !canCancel && !canAmend && !canReceiveDelivery && po.status !== "fully_paid" && (
               <div className="text-sm text-slate-400 text-center py-2">No actions available for your role</div>
             )}
             {po.status === "closed" && <div className="text-sm text-slate-400 text-center py-2">PO is closed</div>}

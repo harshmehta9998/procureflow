@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatCard, StatusBadge, PaymentBadge, EmptyState } from "@/components/po/Shared";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function PurchaseOrders() {
   const { role, instituteId, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, instituteIds } = useUserRole();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [pos, setPos] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -101,7 +102,7 @@ export default function PurchaseOrders() {
           <Button variant="outline" size="sm" onClick={exportCSV} className="border-slate-200">
             <Download className="w-4 h-4 mr-1.5" /> Export
           </Button>
-          {isInstituteAdmin && (
+          {(isInstituteAdmin || isSuperAdmin) && (
             <Link to="/create-po">
               <Button size="sm" className="bg-slate-900 hover:bg-slate-800">
                 <PlusCircle className="w-4 h-4 mr-1.5" /> Create PO
@@ -209,7 +210,7 @@ export default function PurchaseOrders() {
                 {filtered.map((p) => {
                   const od = daysOverdue(p.due_date, p.outstanding_amount);
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => window.location.href = `/po/${p.id}`}>
+                    <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/po/${p.id}`)}>
                       <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{p.po_number}</td>
                       <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">{p.po_title}</td>
                       {isSuperAdmin && <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{p.institute_name}</td>}

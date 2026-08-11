@@ -132,6 +132,8 @@
         "pending_centre_head",
         "centre_head_approved",
         "centre_head_rejected",
+        "pending_super_admin",
+        "super_admin_rejected",
         "pending_approval",
         "approved",
         "rejected",
@@ -196,6 +198,29 @@
       "type": "string",
       "format": "date",
       "title": "Centre Head Approved Date"
+    },
+    "super_admin_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "title": "Super Admin Status"
+    },
+    "super_admin_comment": {
+      "type": "string",
+      "title": "Super Admin Comment"
+    },
+    "super_admin_approved_by": {
+      "type": "string",
+      "title": "Super Admin Approved By"
+    },
+    "super_admin_approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Super Admin Approved Date"
     },
     "parent_po_id": {
       "type": "string",

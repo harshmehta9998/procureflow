@@ -42,6 +42,9 @@ export default function Approvals() {
     return false;
   }), [pos, isSuperAdmin, isCentreHead, instituteIds]);
 
+  // POs pending super admin final approval
+  const posPendingSuperAdmin = useMemo(() => pos.filter((p) => p.status === "pending_super_admin"), [pos]);
+
   // POs pending centre head rejected (back to institute admin for resubmit)
   const posRejectedToAdmin = useMemo(() => pos.filter((p) => p.status === "centre_head_rejected"), [pos]);
 
@@ -57,13 +60,32 @@ export default function Approvals() {
   const prPendingSuperAdmin = useMemo(() => requests.filter((r) => r.status === "pending_super_admin"), [requests]);
 
   const approvePO = async (p, comment) => {
+    // Centre Head approval → forwards PO to Super Admin for final approval
+    await base44.entities.PurchaseOrder.update(p.id, {
+      status: "pending_super_admin", centre_head_status: "approved", centre_head_comment: comment,
+      centre_head_approved_by: userName, centre_head_approved_date: todayISO(),
+    });
+    await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Centre Head Approved PO", "pending_centre_head", "pending_super_admin", comment);
+    toast.success("PO approved by Centre Head & sent to Super Admin");
+    fetchData();
+  };
+
+  const rejectPO = async (p, comment) => {
+    await base44.entities.PurchaseOrder.update(p.id, { status: "centre_head_rejected", centre_head_status: "rejected", centre_head_comment: comment });
+    await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Centre Head Rejected PO", "pending_centre_head", "centre_head_rejected", comment);
+    toast.success("PO sent back to Institute Admin");
+    fetchData();
+  };
+
+  const approvePOSuper = async (p, comment) => {
+    // Super Admin final approval → sends PO to Finance (payment_pending) & finalises approval date
     const approvedDate = todayISO();
     await base44.entities.PurchaseOrder.update(p.id, {
-      status: "payment_pending", centre_head_status: "approved", centre_head_comment: comment,
-      centre_head_approved_by: userName, centre_head_approved_date: approvedDate, approved_date: approvedDate,
+      status: "payment_pending", super_admin_status: "approved", super_admin_comment: comment,
+      super_admin_approved_by: userName, super_admin_approved_date: approvedDate, approved_date: approvedDate,
       outstanding_amount: p.grand_total || 0,
     });
-    // Recalculate milestone due dates with approved_date
+    // Recalculate milestone due dates now that the PO is finally approved
     try {
       const ms = await base44.entities.PaymentMilestone.filter({ po_id: p.id });
       const updatedPo = { ...p, approved_date: approvedDate };
@@ -73,15 +95,15 @@ export default function Approvals() {
         if (newDue) await base44.entities.PaymentMilestone.update(m.id, { due_date: newDue, original_due_date: m.original_due_date || newDue });
       }
     } catch {}
-    await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Centre Head Approved PO", "pending_centre_head", "payment_pending", comment);
+    await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Super Admin Approved PO", "pending_super_admin", "payment_pending", comment);
     toast.success("PO approved & sent to Finance");
     fetchData();
   };
 
-  const rejectPO = async (p, comment) => {
-    await base44.entities.PurchaseOrder.update(p.id, { status: "centre_head_rejected", centre_head_status: "rejected", centre_head_comment: comment });
-    await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Centre Head Rejected PO", "pending_centre_head", "centre_head_rejected", comment);
-    toast.success("PO sent back to Institute Admin");
+  const rejectPOSuper = async (p, comment) => {
+    await base44.entities.PurchaseOrder.update(p.id, { status: "super_admin_rejected", super_admin_status: "rejected", super_admin_comment: comment });
+    await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Super Admin Rejected PO", "pending_super_admin", "super_admin_rejected", comment);
+    toast.success("PO rejected by Super Admin");
     fetchData();
   };
 
@@ -120,7 +142,7 @@ export default function Approvals() {
   if (isSuperAdmin) tabs.push({ key: "super_admin", label: "Super Admin Approvals" });
   tabs.push({ key: "mine", label: "Returned to Me" });
 
-  const totalPending = posPendingCentreHead.length + prPendingCentreHead.length + prPendingSuperAdmin.length;
+  const totalPending = posPendingCentreHead.length + posPendingSuperAdmin.length + prPendingCentreHead.length + prPendingSuperAdmin.length;
 
   return (
     <div className="space-y-5">
@@ -131,6 +153,7 @@ export default function Approvals() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard label="POs (Centre Head)" value={posPendingCentreHead.length} icon={ShieldCheck} accent="amber" />
+        <StatCard label="POs (Super Admin)" value={posPendingSuperAdmin.length} icon={ShieldCheck} accent="blue" />
         <StatCard label="Payment Requests (Centre Head)" value={prPendingCentreHead.length} icon={Clock} accent="blue" />
         <StatCard label="Payment Requests (Super Admin)" value={prPendingSuperAdmin.length} icon={ShieldCheck} accent="purple" />
       </div>
@@ -148,7 +171,10 @@ export default function Approvals() {
         </>
       )}
       {activeTab === "super_admin" && (
-        <ApprovalSection title="Payment Requests Awaiting Super Admin Approval" items={prPendingSuperAdmin} empty="No payment requests awaiting approval" type="pr_super" onApprove={approvePRSuper} onReject={rejectPRSuper} />
+        <>
+          <ApprovalSection title="POs Awaiting Super Admin Approval" items={posPendingSuperAdmin} empty="No POs awaiting approval" type="po_super" onApprove={approvePOSuper} onReject={rejectPOSuper} navigate={navigate} />
+          <ApprovalSection title="Payment Requests Awaiting Super Admin Approval" items={prPendingSuperAdmin} empty="No payment requests awaiting approval" type="pr_super" onApprove={approvePRSuper} onReject={rejectPRSuper} />
+        </>
       )}
       {activeTab === "mine" && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -180,6 +206,7 @@ export default function Approvals() {
 
 function ApprovalSection({ title, items, empty, type, onApprove, onReject, navigate }) {
   const [comment, setComment] = useState({});
+  const isPO = type === "po" || type === "po_super";
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
@@ -192,9 +219,9 @@ function ApprovalSection({ title, items, empty, type, onApprove, onReject, navig
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase"><tr>
               <th className="text-left px-4 py-3 font-medium">Reference</th>
               <th className="text-left px-4 py-3 font-medium">Institute</th>
-              {type === "po" && <th className="text-left px-4 py-3 font-medium">Vendor</th>}
+              {isPO && <th className="text-left px-4 py-3 font-medium">Vendor</th>}
               <th className="text-right px-4 py-3 font-medium">Amount</th>
-              {type !== "po" && <th className="text-left px-4 py-3 font-medium">Category</th>}
+              {!isPO && <th className="text-left px-4 py-3 font-medium">Category</th>}
               <th className="text-left px-4 py-3 font-medium">Status</th>
               <th className="text-left px-4 py-3 font-medium w-48">Comment</th>
               <th className="text-right px-4 py-3 font-medium">Action</th>
@@ -202,12 +229,12 @@ function ApprovalSection({ title, items, empty, type, onApprove, onReject, navig
             <tbody className="divide-y divide-slate-100">
               {items.map((it) => (
                 <tr key={it.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{type === "po" ? it.po_number : it.request_number}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800">{isPO ? it.po_number : it.request_number}</td>
                   <td className="px-4 py-3 text-slate-600">{it.institute_name}</td>
-                  {type === "po" && <td className="px-4 py-3 text-slate-600">{it.vendor_name}</td>}
-                  <td className="px-4 py-3 text-right font-medium">{formatINR(type === "po" ? it.grand_total : it.amount)}</td>
-                  {type !== "po" && <td className="px-4 py-3 text-slate-600">{PR_EXPENSE_LABELS[it.expense_category] || "-"}</td>}
-                  <td className="px-4 py-3">{type === "po" ? <StatusBadge status={it.status} /> : <PRBadge status={it.status} />}</td>
+                  {isPO && <td className="px-4 py-3 text-slate-600">{it.vendor_name}</td>}
+                  <td className="px-4 py-3 text-right font-medium">{formatINR(isPO ? it.grand_total : it.amount)}</td>
+                  {!isPO && <td className="px-4 py-3 text-slate-600">{PR_EXPENSE_LABELS[it.expense_category] || "-"}</td>}
+                  <td className="px-4 py-3">{isPO ? <StatusBadge status={it.status} /> : <PRBadge status={it.status} />}</td>
                   <td className="px-4 py-3"><Textarea value={comment[it.id] || ""} onChange={(e) => setComment({ ...comment, [it.id]: e.target.value })} rows={1} className="h-8 text-xs" placeholder="Comment..." /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
