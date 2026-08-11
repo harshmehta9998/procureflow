@@ -22,6 +22,14 @@
     "address": {
       "type": "string",
       "title": "Address"
+    },
+    "centre_head_id": {
+      "type": "string",
+      "title": "Centre Head User ID"
+    },
+    "centre_head_name": {
+      "type": "string",
+      "title": "Centre Head Name"
     }
   },
   "required": [

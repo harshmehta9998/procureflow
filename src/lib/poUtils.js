@@ -15,6 +15,9 @@ export const todayISO = () => new Date().toISOString().split("T")[0];
 
 export const STATUS_COLORS = {
   draft: "bg-slate-100 text-slate-700 border-slate-200",
+  pending_centre_head: "bg-amber-100 text-amber-700 border-amber-200",
+  centre_head_approved: "bg-teal-100 text-teal-700 border-teal-200",
+  centre_head_rejected: "bg-red-100 text-red-700 border-red-200",
   pending_approval: "bg-amber-100 text-amber-700 border-amber-200",
   approved: "bg-blue-100 text-blue-700 border-blue-200",
   rejected: "bg-red-100 text-red-700 border-red-200",
@@ -23,6 +26,7 @@ export const STATUS_COLORS = {
   partially_paid: "bg-indigo-100 text-indigo-700 border-indigo-200",
   fully_paid: "bg-emerald-100 text-emerald-700 border-emerald-200",
   closed: "bg-slate-200 text-slate-600 border-slate-300",
+  cancelled: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
 export const PAYMENT_STATUS_COLORS = {
@@ -34,14 +38,18 @@ export const PAYMENT_STATUS_COLORS = {
 
 export const STATUS_LABELS = {
   draft: "Draft",
+  pending_centre_head: "Pending Centre Head Approval",
+  centre_head_approved: "Approved by Centre Head",
+  centre_head_rejected: "Rejected by Centre Head",
   pending_approval: "Pending Approval",
   approved: "Approved",
   rejected: "Rejected",
   sent_back: "Sent Back",
-  payment_pending: "Payment Pending",
+  payment_pending: "Sent to Finance",
   partially_paid: "Partially Paid",
   fully_paid: "Fully Paid",
-  closed: "Closed",
+  closed: "Completed",
+  cancelled: "Cancelled",
 };
 
 export const PAYMENT_STATUS_LABELS = {
@@ -53,6 +61,33 @@ export const PAYMENT_STATUS_LABELS = {
 
 export const PO_CATEGORY_LABELS = { capex: "Capex", opex: "Opex" };
 export const PO_TYPE_LABELS = { standard: "Standard", open: "Open" };
+
+export const ROLE_LABELS = {
+  super_admin: "Super Admin",
+  centre_head: "Centre Head",
+  admin: "Institute Admin",
+  finance: "Finance",
+};
+
+export const AMENDMENT_LABELS = {
+  quantity_change: "Quantity Change",
+  price_change: "Price Change",
+  additional_items: "Additional Items",
+  item_removal: "Item Removal",
+  delivery_change: "Delivery Change",
+  other_commercial: "Other Commercial Change",
+  excess_quantity: "Excess Quantity",
+};
+
+// Statuses that represent a financially actionable / approved PO (visible to Finance)
+export const FINANCE_VISIBLE_STATUSES = [
+  "centre_head_approved", "approved", "payment_pending", "partially_paid", "fully_paid", "closed",
+];
+
+// Statuses considered "approved past the centre head gate"
+export const APPROVED_STATUSES = [
+  "centre_head_approved", "approved", "payment_pending", "partially_paid", "fully_paid", "closed",
+];
 
 export const daysOverdue = (dueDate, outstanding) => {
   if (!dueDate || outstanding <= 0) return 0;
@@ -88,6 +123,59 @@ export const generatePONumber = async (instituteCode, category) => {
   const all = await base44.entities.PurchaseOrder.filter({ po_number: { $regex: prefix } });
   const seq = all.length + 1;
   return `${prefix}${String(seq).padStart(5, "0")}`;
+};
+
+export const generateAmendmentNumber = async (parentPoNumber) => {
+  const suffixLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const existing = await base44.entities.PurchaseOrder.filter({ parent_po_number: parentPoNumber });
+  const next = existing.length;
+  return `${parentPoNumber}-${suffixLetters[next] || "Z"}`;
+};
+
+export const generateRequestNumber = async (instituteCode) => {
+  const year = new Date().getFullYear();
+  const prefix = `${instituteCode}-PR-${year}-`;
+  const all = await base44.entities.PaymentRequest.filter({ request_number: { $regex: prefix } });
+  const seq = all.length + 1;
+  return `${prefix}${String(seq).padStart(5, "0")}`;
+};
+
+export const generateRecurringNumber = async (instituteCode) => {
+  const year = new Date().getFullYear();
+  const prefix = `${instituteCode}-REC-${year}-`;
+  const all = await base44.entities.RecurringPayment.filter({ recurring_number: { $regex: prefix } });
+  const seq = all.length + 1;
+  return `${prefix}${String(seq).padStart(5, "0")}`;
+};
+
+// Compute installment due dates from a recurring schedule
+export const generateInstallmentSchedule = (startDateStr, endDateStr, frequency, dueDay, amount) => {
+  const installments = [];
+  if (!startDateStr) return installments;
+  const start = new Date(startDateStr);
+  const end = endDateStr ? new Date(endDateStr) : null;
+  const stepMonths = frequency === "monthly" ? 1 : frequency === "quarterly" ? 3 : frequency === "half_yearly" ? 6 : 12;
+  let current = new Date(start.getFullYear(), start.getMonth(), dueDay || start.getDate());
+  if (current < start) current.setMonth(current.getMonth() + 1);
+  let idx = 1;
+  const guard = new Date(start.getFullYear() + 5, 0, 1);
+  while (current <= (end || guard) && current < guard) {
+    installments.push({
+      installment_number: idx,
+      due_date: current.toISOString().split("T")[0],
+      amount: Number(amount || 0),
+    });
+    current = new Date(current.getFullYear(), current.getMonth() + stepMonths, current.getDate());
+    idx++;
+  }
+  return installments;
+};
+
+// Can the given role approve a PO at the centre head stage?
+export const canApproveAtCentreHead = (role, po, instituteIds) => {
+  if (role === "super_admin") return true;
+  if (role === "centre_head" && po && instituteIds && instituteIds.includes(po.institute_id)) return true;
+  return false;
 };
 
 export const logAudit = async (entityType, entityId, poNumber, userName, action, oldValue, newValue, remarks = "") => {

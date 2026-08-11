@@ -3,13 +3,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatCard, StatusBadge, PaymentBadge, EmptyState } from "@/components/po/Shared";
-import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS } from "@/lib/poUtils";
+import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS, STATUS_LABELS, FINANCE_VISIBLE_STATUSES } from "@/lib/poUtils";
 import { FileText, Search, Filter, Download, X, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function PurchaseOrders() {
-  const { role, instituteId, isInstituteAdmin, isFinance, isSuperAdmin } = useUserRole();
+  const { role, instituteId, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, instituteIds } = useUserRole();
   const [searchParams] = useSearchParams();
   const [pos, setPos] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -50,7 +50,8 @@ export default function PurchaseOrders() {
   const filtered = useMemo(() => {
     return pos.filter((p) => {
       if (isInstituteAdmin && instituteId && p.institute_id !== instituteId) return false;
-      if (isFinance && !["approved", "payment_pending", "partially_paid", "fully_paid", "closed"].includes(p.status)) return false;
+      if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(p.institute_id)) return false;
+      if (isFinance && !FINANCE_VISIBLE_STATUSES.includes(p.status)) return false;
       const f = filters;
       if (f.q) {
         const q = f.q.toLowerCase();
@@ -164,11 +165,7 @@ export default function PurchaseOrders() {
             <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
               <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="All" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="draft">Draft</SelectItem><SelectItem value="pending_approval">Pending Approval</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem><SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="sent_back">Sent Back</SelectItem><SelectItem value="payment_pending">Payment Pending</SelectItem>
-                <SelectItem value="partially_paid">Partially Paid</SelectItem><SelectItem value="fully_paid">Fully Paid</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
+                {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

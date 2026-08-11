@@ -129,6 +129,9 @@
       "type": "string",
       "enum": [
         "draft",
+        "pending_centre_head",
+        "centre_head_approved",
+        "centre_head_rejected",
         "pending_approval",
         "approved",
         "rejected",
@@ -136,7 +139,8 @@
         "payment_pending",
         "partially_paid",
         "fully_paid",
-        "closed"
+        "closed",
+        "cancelled"
       ],
       "default": "draft",
       "title": "Status"
@@ -170,14 +174,58 @@
       "type": "string",
       "title": "Created By"
     },
+    "centre_head_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "title": "Centre Head Status"
+    },
+    "centre_head_comment": {
+      "type": "string",
+      "title": "Centre Head Comment"
+    },
+    "centre_head_approved_by": {
+      "type": "string",
+      "title": "Centre Head Approved By"
+    },
+    "centre_head_approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Centre Head Approved Date"
+    },
     "parent_po_id": {
       "type": "string",
       "title": "Parent PO ID (for amendments)"
+    },
+    "parent_po_number": {
+      "type": "string",
+      "title": "Parent PO Number"
     },
     "is_amendment": {
       "type": "boolean",
       "default": false,
       "title": "Is Amendment"
+    },
+    "amendment_reason": {
+      "type": "string",
+      "title": "Amendment Reason"
+    },
+    "amendment_type": {
+      "type": "string",
+      "enum": [
+        "quantity_change",
+        "price_change",
+        "additional_items",
+        "item_removal",
+        "delivery_change",
+        "other_commercial",
+        "excess_quantity"
+      ],
+      "title": "Amendment Type"
     },
     "approved_date": {
       "type": "string",
@@ -247,6 +295,75 @@
       "type": "boolean",
       "default": false,
       "title": "Has Payment Schedule"
+    },
+    "cancelled": {
+      "type": "boolean",
+      "default": false,
+      "title": "Cancelled"
+    },
+    "cancelled_by": {
+      "type": "string",
+      "title": "Cancelled By"
+    },
+    "cancelled_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Cancelled Date"
+    },
+    "cancellation_reason": {
+      "type": "string",
+      "title": "Cancellation Reason"
+    },
+    "cancellation_comments": {
+      "type": "string",
+      "title": "Cancellation Comments"
+    },
+    "cancellation_doc_url": {
+      "type": "string",
+      "title": "Cancellation Document URL"
+    },
+    "settlement_type": {
+      "type": "string",
+      "enum": [
+        "none",
+        "refund",
+        "credit_adjustment",
+        "write_off"
+      ],
+      "default": "none",
+      "title": "Settlement Type"
+    },
+    "refund_expected": {
+      "type": "number",
+      "default": 0,
+      "title": "Refund Expected"
+    },
+    "refund_received": {
+      "type": "number",
+      "default": 0,
+      "title": "Refund Received"
+    },
+    "credit_adjusted_po_id": {
+      "type": "string",
+      "title": "Credit Adjusted To PO ID"
+    },
+    "credit_adjusted_po_number": {
+      "type": "string",
+      "title": "Credit Adjusted To PO Number"
+    },
+    "credit_adjusted_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Credit Adjusted Amount"
+    },
+    "write_off_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Write-off Amount"
+    },
+    "settlement_remarks": {
+      "type": "string",
+      "title": "Settlement Remarks"
     },
     "deleted": {
       "type": "boolean",

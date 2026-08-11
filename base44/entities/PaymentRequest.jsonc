@@ -1,0 +1,161 @@
+{
+  "name": "PaymentRequest",
+  "type": "object",
+  "properties": {
+    "request_number": {
+      "type": "string",
+      "title": "Request Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "institute_code": {
+      "type": "string",
+      "title": "Institute Code"
+    },
+    "requester_name": {
+      "type": "string",
+      "title": "Requester"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Amount"
+    },
+    "expense_category": {
+      "type": "string",
+      "enum": [
+        "petty_cash",
+        "events",
+        "outings",
+        "staff_reimbursement",
+        "emergency",
+        "small_operational",
+        "other"
+      ],
+      "default": "other",
+      "title": "Expense Category"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "required_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Required Payment Date"
+    },
+    "vendor_id": {
+      "type": "string",
+      "title": "Payee Vendor ID"
+    },
+    "vendor_name": {
+      "type": "string",
+      "title": "Payee Vendor Name"
+    },
+    "payment_mode": {
+      "type": "string",
+      "enum": [
+        "NEFT",
+        "RTGS",
+        "IMPS",
+        "Cheque",
+        "Cash"
+      ],
+      "title": "Payment Mode"
+    },
+    "attachment_url": {
+      "type": "string",
+      "title": "Supporting Document URL"
+    },
+    "remarks": {
+      "type": "string",
+      "title": "Remarks"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "pending_centre_head",
+        "centre_head_approved",
+        "centre_head_rejected",
+        "pending_super_admin",
+        "super_admin_approved",
+        "super_admin_rejected",
+        "sent_to_finance",
+        "payment_pending",
+        "paid",
+        "cancelled"
+      ],
+      "default": "draft",
+      "title": "Status"
+    },
+    "centre_head_comment": {
+      "type": "string",
+      "title": "Centre Head Comment"
+    },
+    "centre_head_approved_by": {
+      "type": "string",
+      "title": "Centre Head Approved By"
+    },
+    "centre_head_approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Centre Head Approved Date"
+    },
+    "super_admin_comment": {
+      "type": "string",
+      "title": "Super Admin Comment"
+    },
+    "super_admin_approved_by": {
+      "type": "string",
+      "title": "Super Admin Approved By"
+    },
+    "super_admin_approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Super Admin Approved Date"
+    },
+    "amount_paid": {
+      "type": "number",
+      "default": 0,
+      "title": "Amount Paid"
+    },
+    "payment_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Payment Date"
+    },
+    "payment_reference": {
+      "type": "string",
+      "title": "Payment Reference"
+    },
+    "payment_remarks": {
+      "type": "string",
+      "title": "Payment Remarks"
+    },
+    "recorded_by_name": {
+      "type": "string",
+      "title": "Recorded By"
+    },
+    "payment_attachment_url": {
+      "type": "string",
+      "title": "Payment Proof URL"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "request_number",
+    "institute_id",
+    "amount",
+    "expense_category"
+  ]
+}

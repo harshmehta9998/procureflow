@@ -1,0 +1,104 @@
+{
+  "name": "RecurringPaymentInstance",
+  "type": "object",
+  "properties": {
+    "recurring_id": {
+      "type": "string",
+      "title": "Recurring Payment ID"
+    },
+    "recurring_number": {
+      "type": "string",
+      "title": "Recurring Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "payee_vendor_name": {
+      "type": "string",
+      "title": "Payee Vendor Name"
+    },
+    "payment_category": {
+      "type": "string",
+      "title": "Payment Category"
+    },
+    "frequency": {
+      "type": "string",
+      "title": "Frequency"
+    },
+    "installment_number": {
+      "type": "number",
+      "title": "Installment Number"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Amount"
+    },
+    "amount_paid": {
+      "type": "number",
+      "default": 0,
+      "title": "Amount Paid"
+    },
+    "outstanding_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Outstanding Amount"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "paid",
+        "overdue",
+        "cancelled"
+      ],
+      "default": "pending",
+      "title": "Status"
+    },
+    "payment_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Payment Date"
+    },
+    "payment_reference": {
+      "type": "string",
+      "title": "Payment Reference"
+    },
+    "payment_mode": {
+      "type": "string",
+      "title": "Payment Mode"
+    },
+    "payment_remarks": {
+      "type": "string",
+      "title": "Payment Remarks"
+    },
+    "recorded_by_name": {
+      "type": "string",
+      "title": "Recorded By"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "recurring_id",
+    "installment_number",
+    "due_date",
+    "amount"
+  ]
+}

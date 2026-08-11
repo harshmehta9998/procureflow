@@ -1,0 +1,155 @@
+{
+  "name": "RecurringPayment",
+  "type": "object",
+  "properties": {
+    "recurring_number": {
+      "type": "string",
+      "title": "Recurring Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "institute_code": {
+      "type": "string",
+      "title": "Institute Code"
+    },
+    "payment_category": {
+      "type": "string",
+      "enum": [
+        "rent",
+        "emi",
+        "software_subscription",
+        "maintenance",
+        "monthly_service",
+        "other"
+      ],
+      "default": "other",
+      "title": "Payment Category"
+    },
+    "payee_vendor_id": {
+      "type": "string",
+      "title": "Payee Vendor ID"
+    },
+    "payee_vendor_name": {
+      "type": "string",
+      "title": "Payee Vendor Name"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Amount per Installment"
+    },
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "monthly",
+        "quarterly",
+        "half_yearly",
+        "yearly"
+      ],
+      "default": "monthly",
+      "title": "Frequency"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "End Date"
+    },
+    "due_day_of_month": {
+      "type": "number",
+      "default": 1,
+      "title": "Due Day of Month"
+    },
+    "num_installments": {
+      "type": "number",
+      "title": "Number of Installments"
+    },
+    "total_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Total Amount"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "attachment_url": {
+      "type": "string",
+      "title": "Supporting Document URL"
+    },
+    "auto_renewal": {
+      "type": "boolean",
+      "default": false,
+      "title": "Auto Renewal"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "pending_centre_head",
+        "centre_head_approved",
+        "centre_head_rejected",
+        "pending_super_admin",
+        "super_admin_approved",
+        "super_admin_rejected",
+        "active",
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "default": "draft",
+      "title": "Status"
+    },
+    "centre_head_comment": {
+      "type": "string",
+      "title": "Centre Head Comment"
+    },
+    "centre_head_approved_by": {
+      "type": "string",
+      "title": "Centre Head Approved By"
+    },
+    "centre_head_approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Centre Head Approved Date"
+    },
+    "super_admin_comment": {
+      "type": "string",
+      "title": "Super Admin Comment"
+    },
+    "super_admin_approved_by": {
+      "type": "string",
+      "title": "Super Admin Approved By"
+    },
+    "super_admin_approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Super Admin Approved Date"
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Created By"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "recurring_number",
+    "institute_id",
+    "amount",
+    "frequency",
+    "start_date"
+  ]
+}

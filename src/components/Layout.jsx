@@ -5,65 +5,124 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, PlusCircle, Users, Wallet, BarChart3,
-  Building2, ClipboardList, LogOut, Search, Menu, X, ChevronDown
+  Building2, ClipboardList, LogOut, Search, Menu, X, ChevronDown,
+  GitBranch, PackageCheck, Zap, CalendarClock, History, RefreshCw,
+  ShieldCheck, UserCog, Receipt, Layers
 } from "lucide-react";
 
-const navItems = [
-  { label: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "super_admin", "finance"] },
-  { label: "Purchase Orders", path: "/purchase-orders", icon: FileText, roles: ["admin", "super_admin", "finance"] },
-  { label: "Create PO", path: "/create-po", icon: PlusCircle, roles: ["admin"] },
-  { label: "Finance", path: "/finance", icon: Wallet, roles: ["finance", "super_admin"] },
-  { label: "Vendors", path: "/vendors", icon: Users, roles: ["admin", "super_admin", "finance"] },
-  { label: "Institutes", path: "/institutes", icon: Building2, roles: ["super_admin"] },
-  { label: "User Management", path: "/user-management", icon: Users, roles: ["super_admin"] },
-  { label: "Reports", path: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance"] },
-  { label: "Audit Log", path: "/audit-log", icon: ClipboardList, roles: ["super_admin"] },
+const NAV_GROUPS = [
+  {
+    label: "Procurement",
+    items: [
+      { label: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "Purchase Orders", path: "/purchase-orders", icon: FileText, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "PO Amendments", path: "/po-amendments", icon: GitBranch, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "Delivery & Quantity Verification", path: "/delivery-verification", icon: PackageCheck, roles: ["admin", "centre_head", "super_admin"] },
+    ],
+  },
+  {
+    label: "Payments",
+    items: [
+      { label: "Payment Initiatives", path: "/payment-initiatives", icon: Zap, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "Request for Payment", path: "/payment-requests", icon: Receipt, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "Recurring Payments", path: "/recurring-payments", icon: CalendarClock, roles: ["admin", "centre_head", "super_admin", "finance"] },
+      { label: "Payment History", path: "/payment-history", icon: History, roles: ["super_admin", "finance", "centre_head"] },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { label: "Finance Dashboard", path: "/finance", icon: Wallet, roles: ["finance", "super_admin", "centre_head"] },
+      { label: "Institution-wise Finance", path: "/institutions", icon: Building2, roles: ["super_admin", "finance", "centre_head"] },
+      { label: "Vendor-wise Finance", path: "/vendors", icon: Users, roles: ["super_admin", "finance", "centre_head"] },
+      { label: "Refunds & Credits", path: "/refunds-credits", icon: RefreshCw, roles: ["super_admin", "finance"] },
+    ],
+  },
+  {
+    label: "Approvals",
+    items: [
+      { label: "My Approvals", path: "/approvals", icon: ShieldCheck, roles: ["centre_head", "super_admin", "admin"] },
+      { label: "Centre Head Approvals", path: "/approvals?stage=centre_head", icon: ShieldCheck, roles: ["centre_head", "super_admin"] },
+      { label: "Super Admin Approvals", path: "/approvals?stage=super_admin", icon: ShieldCheck, roles: ["super_admin"] },
+    ],
+  },
+  {
+    label: "Management",
+    items: [
+      { label: "Institutions", path: "/institutes", icon: Building2, roles: ["super_admin", "centre_head"] },
+      { label: "Centre Heads", path: "/centre-heads", icon: UserCog, roles: ["super_admin"] },
+      { label: "Vendors", path: "/vendors", icon: Users, roles: ["admin", "super_admin", "finance", "centre_head"] },
+      { label: "Users", path: "/user-management", icon: Users, roles: ["super_admin"] },
+    ],
+  },
+  {
+    label: "Reports",
+    items: [
+      { label: "Reports", path: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance", "centre_head"] },
+      { label: "Audit Trail", path: "/audit-log", icon: ClipboardList, roles: ["super_admin"] },
+    ],
+  },
 ];
 
+const matchesPath = (pathname, itemPath) => {
+  const clean = itemPath.split("?")[0];
+  if (clean === "/") return pathname === "/";
+  return pathname === clean || pathname.startsWith(clean + "/") || pathname.startsWith(clean);
+};
+
 export default function Layout() {
-  const { role, userName, setDemoRole, isSuperAdmin, isFinance, isInstituteAdmin, instituteName, instituteIds, instituteNames, hasMultipleInstitutes, activeInstituteId, setActiveInstituteId } = useUserRole();
+  const { role, userName, setDemoRole, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead, instituteName, instituteIds, instituteNames, hasMultipleInstitutes, activeInstituteId, setActiveInstituteId } = useUserRole();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [instOpen, setInstOpen] = useState(false);
 
-  const visibleItems = navItems.filter((i) => i.roles.includes(role));
+  const visibleGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((i) => i.roles.includes(role)),
+  })).filter((g) => g.items.length > 0);
 
   const handleLogout = async () => {
     await base44.auth.logout("/login");
   };
 
-  const roleBadge = isSuperAdmin ? "Super Admin" : isFinance ? "Finance" : "Institute Admin";
+  const roleBadge = isSuperAdmin ? "Super Admin" : isCentreHead ? "Centre Head" : isFinance ? "Finance" : "Institute Admin";
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="h-16 flex items-center gap-2 px-5 border-b border-slate-200">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-800 to-slate-600 flex items-center justify-center text-white font-bold text-sm">PO</div>
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-800 to-slate-600 flex items-center justify-center text-white font-bold text-sm">PF</div>
           <div>
-            <div className="font-semibold text-sm text-slate-800 leading-tight">PO & Finance</div>
-            <div className="text-[10px] text-slate-400 uppercase tracking-wide">Management System</div>
+            <div className="font-semibold text-sm text-slate-800 leading-tight">ProcureFlow</div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-wide">PO & Finance</div>
           </div>
         </div>
-        <nav className="flex-1 py-3 px-3 space-y-1 overflow-y-auto">
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-            const active = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 py-2 px-2.5 space-y-3 overflow-y-auto">
+          {visibleGroups.map((group) => (
+            <div key={group.label}>
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{group.label}</div>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = matchesPath(location.pathname, item.path);
+                  return (
+                    <Link
+                      key={item.label}
+                      to={item.path}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                        active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
         <div className="p-3 border-t border-slate-200">
           <div className="px-3 py-2 mb-2">
@@ -78,7 +137,6 @@ export default function Layout() {
 
       {mobileOpen && <div className="fixed inset-0 bg-black/30 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 gap-4">
           <div className="flex items-center gap-3 flex-1">
@@ -138,8 +196,9 @@ const RoleSwitcher = ({ demoRole, setDemoRole }) => {
   const [open, setOpen] = useState(false);
   const roles = [
     { value: "admin", label: "Institute Admin" },
-    { value: "super_admin", label: "Super Admin" },
+    { value: "centre_head", label: "Centre Head" },
     { value: "finance", label: "Finance" },
+    { value: "super_admin", label: "Super Admin" },
   ];
   const current = roles.find((r) => r.value === demoRole);
   return (

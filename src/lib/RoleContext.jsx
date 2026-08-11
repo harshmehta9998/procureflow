@@ -16,7 +16,6 @@ export const RoleProvider = ({ children }) => {
       try {
         const u = await base44.auth.me();
         setUser(u);
-        // Default active institute to first mapped institute if available
         const ids = u?.institute_ids || (u?.institute_id ? [u.institute_id] : []);
         if (ids.length > 0) setActiveInstituteId(ids[0]);
       } catch (e) {
@@ -30,7 +29,6 @@ export const RoleProvider = ({ children }) => {
   const effectiveRole = demoRole || user?.role || "super_admin";
   const instituteIds = user?.institute_ids || (user?.institute_id ? [user.institute_id] : []);
   const instituteNames = user?.institute_names || (user?.institute_name ? [user.institute_name] : []);
-  // The active institute is the one the user is currently acting as (for multi-institute users)
   const instituteId = effectiveRole === "super_admin" ? null : (activeInstituteId || instituteIds[0] || user?.institute_id || null);
   const instituteName = effectiveRole === "super_admin" ? null : (
     instituteIds.indexOf(instituteId) >= 0 ? (instituteNames[instituteIds.indexOf(instituteId)] || user?.institute_name) : user?.institute_name
@@ -50,10 +48,19 @@ export const RoleProvider = ({ children }) => {
     loading,
     setDemoRole,
     isSuperAdmin: effectiveRole === "super_admin",
+    isCentreHead: effectiveRole === "centre_head",
     isFinance: effectiveRole === "finance",
     isInstituteAdmin: effectiveRole === "admin",
+    // Centre heads manage multiple institutes; finance/super_admin see all
+    managesInstitute: (instId) => {
+      if (effectiveRole === "super_admin") return true;
+      if (!instId) return false;
+      if (effectiveRole === "centre_head") return instituteIds.includes(instId);
+      if (effectiveRole === "admin") return instituteIds.includes(instId);
+      return false;
+    },
     hasMultipleInstitutes: instituteIds.length > 1,
   };
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
-}
+};

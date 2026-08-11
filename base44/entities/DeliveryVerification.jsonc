@@ -1,0 +1,129 @@
+{
+  "name": "DeliveryVerification",
+  "type": "object",
+  "properties": {
+    "po_id": {
+      "type": "string",
+      "title": "Purchase Order ID"
+    },
+    "po_number": {
+      "type": "string",
+      "title": "PO Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "vendor_id": {
+      "type": "string",
+      "title": "Vendor ID"
+    },
+    "vendor_name": {
+      "type": "string",
+      "title": "Vendor Name"
+    },
+    "item_name": {
+      "type": "string",
+      "title": "Item Name"
+    },
+    "po_quantity": {
+      "type": "number",
+      "title": "PO Quantity"
+    },
+    "received_quantity": {
+      "type": "number",
+      "title": "Received Quantity"
+    },
+    "short_quantity": {
+      "type": "number",
+      "default": 0,
+      "title": "Short Quantity"
+    },
+    "excess_quantity": {
+      "type": "number",
+      "default": 0,
+      "title": "Excess Quantity"
+    },
+    "accepted_quantity": {
+      "type": "number",
+      "title": "Accepted Quantity"
+    },
+    "returned_quantity": {
+      "type": "number",
+      "default": 0,
+      "title": "Returned Quantity"
+    },
+    "unit_price": {
+      "type": "number",
+      "title": "Unit Price"
+    },
+    "payable_amount": {
+      "type": "number",
+      "title": "Payable Amount"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Delivery Date"
+    },
+    "remarks": {
+      "type": "string",
+      "title": "Remarks"
+    },
+    "attachment_url": {
+      "type": "string",
+      "title": "Delivery Proof URL"
+    },
+    "action_taken": {
+      "type": "string",
+      "enum": [
+        "close_with_received",
+        "receive_balance_later",
+        "return_excess",
+        "create_amendment"
+      ],
+      "title": "Action Taken"
+    },
+    "balance_pending": {
+      "type": "number",
+      "default": 0,
+      "title": "Balance Quantity Pending"
+    },
+    "amendment_po_id": {
+      "type": "string",
+      "title": "Amendment PO ID"
+    },
+    "amendment_po_number": {
+      "type": "string",
+      "title": "Amendment PO Number"
+    },
+    "verified_by_name": {
+      "type": "string",
+      "title": "Verified By"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "balance_pending",
+        "amended"
+      ],
+      "default": "verified",
+      "title": "Status"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "po_id",
+    "po_number",
+    "received_quantity"
+  ]
+}

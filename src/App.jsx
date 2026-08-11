@@ -19,6 +19,16 @@ import Finance from '@/pages/Finance';
 import Reports from '@/pages/Reports';
 import AuditLogPage from '@/pages/AuditLog';
 import UserManagement from '@/pages/UserManagement';
+import PaymentRequests from '@/pages/PaymentRequests';
+import RecurringPayments from '@/pages/RecurringPayments';
+import DeliveryVerification from '@/pages/DeliveryVerification';
+import PaymentInitiatives from '@/pages/PaymentInitiatives';
+import Approvals from '@/pages/Approvals';
+import CentreHeads from '@/pages/CentreHeads';
+import RefundsCredits from '@/pages/RefundsCredits';
+import PaymentHistory from '@/pages/PaymentHistory';
+import POAmendments from '@/pages/POAmendments';
+import InstitutionFinance from '@/pages/InstitutionFinance';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -58,6 +68,16 @@ const AuthenticatedApp = () => {
         <Route path="/reports" element={<Reports />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
         <Route path="/user-management" element={<UserManagement />} />
+        <Route path="/payment-requests" element={<PaymentRequests />} />
+        <Route path="/recurring-payments" element={<RecurringPayments />} />
+        <Route path="/delivery-verification" element={<DeliveryVerification />} />
+        <Route path="/payment-initiatives" element={<PaymentInitiatives />} />
+        <Route path="/approvals" element={<Approvals />} />
+        <Route path="/centre-heads" element={<CentreHeads />} />
+        <Route path="/refunds-credits" element={<RefundsCredits />} />
+        <Route path="/payment-history" element={<PaymentHistory />} />
+        <Route path="/po-amendments" element={<POAmendments />} />
+        <Route path="/institutions" element={<InstitutionFinance />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

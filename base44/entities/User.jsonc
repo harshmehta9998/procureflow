@@ -6,6 +6,7 @@
       "type": "string",
       "enum": [
         "admin",
+        "centre_head",
         "super_admin",
         "finance"
       ],

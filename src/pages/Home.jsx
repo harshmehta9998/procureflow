@@ -17,7 +17,7 @@ import {
 } from "recharts";
 
 export default function Home() {
-  const { role, instituteId, isSuperAdmin, isFinance, isInstituteAdmin, userName } = useUserRole();
+  const { role, instituteId, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead, instituteIds, userName } = useUserRole();
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,22 +29,28 @@ export default function Home() {
         if (isInstituteAdmin && instituteId) {
           list = list.filter((p) => p.institute_id === instituteId);
         }
+        if (isCentreHead && instituteIds && instituteIds.length > 0) {
+          list = list.filter((p) => instituteIds.includes(p.institute_id));
+        }
         setPos(list);
       } finally {
         setLoading(false);
       }
     })();
-  }, [role, instituteId, isInstituteAdmin]);
+  }, [role, instituteId, isInstituteAdmin, isCentreHead, instituteIds]);
 
   const counts = {
     total: pos.length,
     draft: pos.filter((p) => p.status === "draft").length,
-    pending: pos.filter((p) => p.status === "pending_approval").length,
-    approved: pos.filter((p) => p.status === "approved" || p.status === "payment_pending").length,
+    pending: pos.filter((p) => p.status === "pending_centre_head").length,
+    centreHeadApproved: pos.filter((p) => p.status === "centre_head_approved").length,
+    centreHeadRejected: pos.filter((p) => p.status === "centre_head_rejected").length,
+    approved: pos.filter((p) => ["approved", "payment_pending"].includes(p.status)).length,
     rejected: pos.filter((p) => p.status === "rejected").length,
     partiallyPaid: pos.filter((p) => p.status === "partially_paid").length,
-    fullyPaid: pos.filter((p) => p.status === "fully_paid" || p.status === "closed").length,
+    fullyPaid: pos.filter((p) => ["fully_paid", "closed"].includes(p.status)).length,
     paymentPending: pos.filter((p) => p.status === "payment_pending").length,
+    cancelled: pos.filter((p) => p.status === "cancelled").length,
   };
 
   const go = (params) => { window.location.href = "/purchase-orders" + (params ? "?" + new URLSearchParams(params).toString() : ""); };
@@ -56,8 +62,8 @@ export default function Home() {
   const openPos = pos.filter((p) => p.po_type === "open");
   const totalCapex = capexPos.reduce((s, p) => s + (p.grand_total || 0), 0);
   const totalOpex = opexPos.reduce((s, p) => s + (p.grand_total || 0), 0);
-  const pendingCapex = pos.filter((p) => p.status === "pending_approval" && p.po_category === "capex");
-  const pendingOpex = pos.filter((p) => p.status === "pending_approval" && p.po_category === "opex");
+  const pendingCapex = pos.filter((p) => p.status === "pending_centre_head" && p.po_category === "capex");
+  const pendingOpex = pos.filter((p) => p.status === "pending_centre_head" && p.po_category === "opex");
   const approvedPos = pos.filter((p) => ["approved", "payment_pending", "partially_paid", "fully_paid", "closed"].includes(p.status));
   const totalLiability = pos.reduce((s, p) => s + (p.outstanding_amount || 0), 0);
   const overdueAmount = pos
@@ -91,10 +97,10 @@ export default function Home() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
-            {isSuperAdmin ? "Super Admin Dashboard" : isFinance ? "Finance Dashboard" : "Institute Dashboard"}
+            {isSuperAdmin ? "Super Admin Dashboard" : isCentreHead ? "Centre Head Dashboard" : isFinance ? "Finance Dashboard" : "Institute Dashboard"}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Welcome back, {userName}. {isInstituteAdmin ? "Here's your institute overview." : "Here's the system overview."}
+            Welcome back, {userName}. {isInstituteAdmin ? "Here's your institute overview." : isCentreHead ? "Here's your group overview." : "Here's the system overview."}
           </p>
         </div>
         {isInstituteAdmin && (
@@ -133,6 +139,18 @@ export default function Home() {
           <StatCard label="Pay Pending" value={counts.paymentPending} icon={Wallet} accent="purple" onClick={() => go({ status: "payment_pending" })} />
           <StatCard label="Partial Paid" value={counts.partiallyPaid} icon={Wallet} accent="indigo" onClick={() => go({ status: "partially_paid" })} />
           <StatCard label="Fully Paid" value={counts.fullyPaid} icon={CheckCircle} accent="emerald" onClick={() => go({ status: "fully_paid" })} />
+        </div>
+      )}
+
+      {/* Stat cards — Centre Head */}
+      {isCentreHead && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          <StatCard label="Total POs" value={counts.total} icon={FileText} accent="slate" onClick={() => go()} />
+          <StatCard label="Pending My Approval" value={counts.pending} icon={Clock} accent="amber" onClick={() => go({ status: "pending_centre_head" })} />
+          <StatCard label="Approved by Me" value={counts.centreHeadApproved} icon={CheckCircle} accent="teal" onClick={() => go({ status: "centre_head_approved" })} />
+          <StatCard label="Rejected" value={counts.centreHeadRejected} icon={XCircle} accent="red" onClick={() => go({ status: "centre_head_rejected" })} />
+          <StatCard label="Liability" value={formatINR(totalLiability)} icon={AlertTriangle} accent="amber" onClick={goFinance} />
+          <StatCard label="Overdue" value={formatINR(overdueAmount)} icon={AlertTriangle} accent="red" onClick={goFinance} />
         </div>
       )}
 

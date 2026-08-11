@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatusBadge, PaymentBadge } from "@/components/po/Shared";
-import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS, logAudit, todayISO } from "@/lib/poUtils";
+import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS, logAudit, todayISO, generateAmendmentNumber, AMENDMENT_LABELS, canApproveAtCentreHead } from "@/lib/poUtils";
 import { calculateDueDate, computePOPaymentStatus, computePOTotals } from "@/lib/paymentScheduleUtils";
 import ScheduleView from "@/components/payment-schedule/ScheduleView";
 import TriggerEventsPanel from "@/components/payment-schedule/TriggerEventsPanel";
@@ -16,7 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft, CheckCircle, XCircle, RotateCcw, Wallet, FileDown, Upload,
-  History, Paperclip, Building2, User, IndianRupee, FileText, Clock, Calendar, Zap
+  History, Paperclip, Building2, User, IndianRupee, FileText, Clock, Calendar, Zap,
+  Ban, GitBranch, PackageCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -24,17 +25,22 @@ import jsPDF from "jspdf";
 export default function PODetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { role, userName, isSuperAdmin, isFinance, isInstituteAdmin } = useUserRole();
+  const { role, userName, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead, instituteIds } = useUserRole();
   const [po, setPo] = useState(null);
   const [payments, setPayments] = useState([]);
   const [logs, setLogs] = useState([]);
   const [milestones, setMilestones] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
+  const [amendments, setAmendments] = useState([]);
   const [vendor, setVendor] = useState(null);
   const [institute, setInstitute] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showReject, setShowReject] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+  const [showAmend, setShowAmend] = useState(false);
+  const [showDelivery, setShowDelivery] = useState(false);
 
   const [payment, setPayment] = useState({
     payment_date: todayISO(),
@@ -51,14 +57,18 @@ export default function PODetail() {
         const p = await base44.entities.PurchaseOrder.get(id);
         if (p.deleted) { navigate("/purchase-orders"); return; }
         setPo(p);
-        const [pays, allLogs, ms] = await Promise.all([
+        const [pays, allLogs, ms, dels, ams] = await Promise.all([
           base44.entities.Payment.filter({ po_id: id }, "-payment_date"),
           base44.entities.AuditLog.filter({ entity_id: id }, "-created_date"),
           base44.entities.PaymentMilestone.filter({ po_id: id }, "order_index"),
+          base44.entities.DeliveryVerification.filter({ po_id: id }, "-created_date"),
+          base44.entities.PurchaseOrder.filter({ parent_po_id: id }, "-created_date"),
         ]);
         setPayments(pays);
         setLogs(allLogs);
         setMilestones(ms.filter((m) => !m.deleted));
+        setDeliveries(dels.filter((d) => !d.deleted));
+        setAmendments(ams.filter((a) => !a.deleted));
         if (p.vendor_id) { try { setVendor(await base44.entities.Vendor.get(p.vendor_id)); } catch {} }
         if (p.institute_id) { try { setInstitute(await base44.entities.Institute.get(p.institute_id)); } catch {} }
       } finally {
@@ -78,6 +88,12 @@ export default function PODetail() {
     setPayments(pays);
     setLogs(allLogs);
     setMilestones(ms.filter((m) => !m.deleted));
+    const [dels, ams] = await Promise.all([
+      base44.entities.DeliveryVerification.filter({ po_id: id }, "-created_date"),
+      base44.entities.PurchaseOrder.filter({ parent_po_id: id }, "-created_date"),
+    ]);
+    setDeliveries(dels.filter((d) => !d.deleted));
+    setAmendments(ams.filter((a) => !a.deleted));
   };
 
   const updateStatus = async (newStatus, action, remarks = "") => {
@@ -89,13 +105,16 @@ export default function PODetail() {
   };
 
   const approvePO = async () => {
+    // Centre Head approval → sends PO to Finance (payment_pending)
     const newStatus = po.grand_total > 0 ? "payment_pending" : "approved";
     try {
       const approvedDate = todayISO();
-      const updateData = { status: newStatus, rejection_reason: "", approved_date: approvedDate };
+      const updateData = {
+        status: newStatus, rejection_reason: "", approved_date: approvedDate,
+        centre_head_status: "approved", centre_head_approved_by: userName, centre_head_approved_date: approvedDate,
+        outstanding_amount: po.grand_total || 0,
+      };
       await base44.entities.PurchaseOrder.update(id, updateData);
-
-      // Recalculate milestone due dates with the approved_date set
       const activeMs = milestones.filter((m) => m.status !== "cancelled" && m.status !== "paid");
       const updatedPo = { ...po, approved_date: approvedDate };
       for (const m of activeMs) {
@@ -107,16 +126,84 @@ export default function PODetail() {
           });
         }
       }
-      await logAudit("PurchaseOrder", id, po.po_number, userName, "PO Approved", po.status, newStatus, "Approved by Super Admin");
-      toast.success("PO Approved");
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "Centre Head Approved PO", po.status, newStatus, "Approved by Centre Head");
+      toast.success("PO approved & sent to Finance");
       refreshPO();
     } catch (err) {
       toast.error("Approval failed");
     }
   };
-  const rejectPO = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("rejected", "PO Rejected", rejectionReason); setShowReject(false); };
+  const rejectPO = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("centre_head_rejected", "Centre Head Rejected", rejectionReason); setShowReject(false); };
   const sendBack = () => updateStatus("sent_back", "Sent Back for Revision", "Requires modification");
   const closePO = () => updateStatus("closed", "PO Closed", "Closed by Finance");
+
+  const cancelPO = async (cancelData) => {
+    try {
+      await base44.entities.PurchaseOrder.update(id, {
+        status: "cancelled", cancelled: true, cancelled_by: userName, cancelled_date: todayISO(),
+        cancellation_reason: cancelData.reason, cancellation_comments: cancelData.comments, cancellation_doc_url: cancelData.docUrl,
+        settlement_type: cancelData.settlementType,
+        refund_expected: cancelData.settlementType === "refund" ? cancelData.amount : 0,
+        credit_adjusted_po_id: cancelData.settlementType === "credit_adjustment" ? cancelData.targetPoId : "",
+        credit_adjusted_amount: cancelData.settlementType === "credit_adjustment" ? cancelData.amount : 0,
+        write_off_amount: cancelData.settlementType === "write_off" ? cancelData.amount : 0,
+        settlement_remarks: cancelData.remarks,
+        outstanding_amount: 0,
+      });
+      // Create a VendorCredit record for the settlement
+      if (cancelData.settlementType !== "none" && cancelData.amount > 0) {
+        await base44.entities.VendorCredit.create({
+          from_po_id: id, from_po_number: po.po_number, institute_id: po.institute_id, institute_name: po.institute_name,
+          vendor_id: po.vendor_id, vendor_name: po.vendor_name,
+          settlement_type: cancelData.settlementType, amount: cancelData.amount,
+          credit_adjusted_to_po_id: cancelData.settlementType === "credit_adjustment" ? cancelData.targetPoId : "",
+          credit_adjusted_to_po_number: cancelData.settlementType === "credit_adjustment" ? cancelData.targetPoNumber : "",
+          write_off_reason: cancelData.settlementType === "write_off" ? cancelData.reason : "",
+          remarks: cancelData.remarks, status: "pending", created_by_name: userName,
+        });
+        // If credit adjustment, reduce target PO outstanding immediately
+        if (cancelData.settlementType === "credit_adjustment" && cancelData.targetPoId) {
+          const target = await base44.entities.PurchaseOrder.get(cancelData.targetPoId);
+          await base44.entities.PurchaseOrder.update(cancelData.targetPoId, { outstanding_amount: Math.max(0, (target.outstanding_amount || 0) - cancelData.amount) });
+        }
+      }
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "PO Cancelled", po.status, "cancelled", cancelData.reason);
+      toast.success("PO cancelled with financial settlement");
+      setShowCancel(false);
+      refreshPO();
+    } catch (err) { toast.error(err.message || "Cancellation failed"); }
+  };
+
+  const createAmendment = async (amendData) => {
+    try {
+      const newNum = await generateAmendmentNumber(po.po_number);
+      const newGrand = Number(amendData.grandTotal || 0);
+      const created = await base44.entities.PurchaseOrder.create({
+        ...po,
+        id: undefined, created_date: undefined, updated_date: undefined,
+        po_number: newNum,
+        parent_po_id: id,
+        parent_po_number: po.po_number,
+        is_amendment: true,
+        amendment_reason: amendData.reason,
+        amendment_type: amendData.type,
+        status: "pending_centre_head",
+        centre_head_status: "pending",
+        centre_head_approved_by: "", centre_head_approved_date: "",
+        amount_paid: 0, outstanding_amount: newGrand,
+        payment_status: "none",
+        approved_date: "",
+        cancelled: false, cancelled_by: "", cancelled_date: "", cancellation_reason: "",
+        deleted: false,
+        grand_total: newGrand,
+        items: amendData.items,
+      });
+      await logAudit("PurchaseOrder", created.id, newNum, userName, "PO Amendment Created", po.po_number, newNum, amendData.reason);
+      toast.success("Amendment created: " + newNum);
+      setShowAmend(false);
+      navigate(`/po/${created.id}`);
+    } catch (err) { toast.error(err.message || "Amendment failed"); }
+  };
 
   const handlePaymentUpload = async (e) => {
     const file = e.target.files[0];
@@ -244,10 +331,13 @@ export default function PODetail() {
   if (!po) return <div className="text-center py-20 text-slate-500">PO not found</div>;
 
   const od = daysOverdue(po.due_date, po.outstanding_amount);
-  const canApprove = isSuperAdmin && po.status === "pending_approval";
+  const canApprove = (isCentreHead || isSuperAdmin) && po.status === "pending_centre_head";
   const hasSchedule = milestones.length > 0;
   const canPay = isFinance && !hasSchedule && ["payment_pending", "partially_paid"].includes(po.status);
   const canEdit = false;
+  const canCancel = isSuperAdmin && !["cancelled", "closed", "fully_paid"].includes(po.status) && !po.is_amendment;
+  const canAmend = isSuperAdmin && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
+  const canReceiveDelivery = isInstituteAdmin && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -436,10 +526,20 @@ export default function PODetail() {
             {isFinance && po.status === "fully_paid" && (
               <Button className="w-full bg-slate-700" onClick={closePO}><CheckCircle className="w-4 h-4 mr-1.5" /> Close PO</Button>
             )}
-            {!canApprove && !canPay && po.status !== "fully_paid" && (
+            {canReceiveDelivery && (
+              <Button className="w-full bg-teal-600 hover:bg-teal-700" onClick={() => setShowDelivery(true)}><PackageCheck className="w-4 h-4 mr-1.5" /> Receive / Verify Delivery</Button>
+            )}
+            {canAmend && (
+              <Button variant="outline" className="w-full border-indigo-200 text-indigo-700" onClick={() => setShowAmend(true)}><GitBranch className="w-4 h-4 mr-1.5" /> Create PO Amendment</Button>
+            )}
+            {canCancel && (
+              <Button variant="outline" className="w-full border-rose-200 text-rose-600" onClick={() => setShowCancel(true)}><Ban className="w-4 h-4 mr-1.5" /> Cancel PO</Button>
+            )}
+            {!canApprove && !canPay && !canCancel && !canAmend && !canReceiveDelivery && po.status !== "fully_paid" && (
               <div className="text-sm text-slate-400 text-center py-2">No actions available for your role</div>
             )}
             {po.status === "closed" && <div className="text-sm text-slate-400 text-center py-2">PO is closed</div>}
+            {po.status === "cancelled" && <div className="text-sm text-rose-600 text-center py-2">PO is cancelled</div>}
           </Card>
 
           {/* Payment form */}

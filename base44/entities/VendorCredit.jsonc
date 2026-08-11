@@ -1,0 +1,92 @@
+{
+  "name": "VendorCredit",
+  "type": "object",
+  "properties": {
+    "from_po_id": {
+      "type": "string",
+      "title": "From PO ID"
+    },
+    "from_po_number": {
+      "type": "string",
+      "title": "From PO Number"
+    },
+    "institute_id": {
+      "type": "string",
+      "title": "Institute ID"
+    },
+    "institute_name": {
+      "type": "string",
+      "title": "Institute Name"
+    },
+    "vendor_id": {
+      "type": "string",
+      "title": "Vendor ID"
+    },
+    "vendor_name": {
+      "type": "string",
+      "title": "Vendor Name"
+    },
+    "settlement_type": {
+      "type": "string",
+      "enum": [
+        "refund",
+        "credit_adjustment",
+        "write_off"
+      ],
+      "title": "Settlement Type"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Settlement Amount"
+    },
+    "refund_received": {
+      "type": "number",
+      "default": 0,
+      "title": "Refund Received"
+    },
+    "credit_adjusted_to_po_id": {
+      "type": "string",
+      "title": "Credit Adjusted To PO ID"
+    },
+    "credit_adjusted_to_po_number": {
+      "type": "string",
+      "title": "Credit Adjusted To PO Number"
+    },
+    "credit_adjusted_amount": {
+      "type": "number",
+      "default": 0,
+      "title": "Credit Adjusted Amount"
+    },
+    "write_off_reason": {
+      "type": "string",
+      "title": "Write-off Reason"
+    },
+    "remarks": {
+      "type": "string",
+      "title": "Remarks"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "completed"
+      ],
+      "default": "pending",
+      "title": "Status"
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Created By"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Soft Delete"
+    }
+  },
+  "required": [
+    "from_po_id",
+    "settlement_type",
+    "amount"
+  ]
+}

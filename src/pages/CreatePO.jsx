@@ -118,7 +118,7 @@ export default function CreatePO() {
       const inst = institutes.find((i) => i.id === form.institute_id);
       const vendor = vendors.find((v) => v.id === form.vendor_id);
       const poNumber = await generatePONumber(inst.institute_code, form.po_category);
-      const status = submitForApproval ? "pending_approval" : "draft";
+      const status = submitForApproval ? "pending_centre_head" : "draft";
 
       const poData = {
         ...form,
@@ -133,6 +133,7 @@ export default function CreatePO() {
         amount_paid: 0,
         payment_status: "none",
         status,
+        centre_head_status: submitForApproval ? "pending" : "pending",
         created_by_name: userName,
         deleted: false,
       };
