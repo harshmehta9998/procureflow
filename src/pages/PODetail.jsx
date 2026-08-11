@@ -8,6 +8,9 @@ import { calculateDueDate, computePOPaymentStatus, computePOTotals } from "@/lib
 import ScheduleView from "@/components/payment-schedule/ScheduleView";
 import TriggerEventsPanel from "@/components/payment-schedule/TriggerEventsPanel";
 import PaymentTimeline from "@/components/payment-schedule/PaymentTimeline";
+import CancelPOModal from "@/components/po/CancelPOModal";
+import AmendPOModal from "@/components/po/AmendPOModal";
+import DeliveryModal from "@/components/po/DeliveryModal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -614,8 +617,64 @@ export default function PODetail() {
               ))}
             </div>
           </Card>
+
+          {/* Amendment Chain */}
+          {(po.is_amendment || amendments.length > 0) && (
+            <Card className="p-5">
+              <h3 className="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-2"><GitBranch className="w-4 h-4" /> Amendment Chain</h3>
+              {po.is_amendment && po.parent_po_id && (
+                <Link to={`/po/${po.parent_po_id}`} className="inline-flex items-center gap-1 text-xs text-indigo-600 mb-2">
+                  ← Parent PO: {po.parent_po_number}
+                </Link>
+              )}
+              {amendments.length > 0 && (
+                <div className="space-y-2">
+                  {amendments.map((a) => (
+                    <Link key={a.id} to={`/po/${a.id}`} className="block border border-slate-100 rounded-lg p-2.5 hover:bg-slate-50">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium text-slate-700">{a.po_number}</span>
+                        <StatusBadge status={a.status} />
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">{AMENDMENT_LABELS[a.amendment_type] || a.amendment_type} · {formatINR(a.grand_total)}</div>
+                      {a.amendment_reason && <div className="text-xs text-slate-500 mt-0.5">{a.amendment_reason}</div>}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Delivery Verifications */}
+          {deliveries.length > 0 && (
+            <Card className="p-5">
+              <h3 className="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-2"><PackageCheck className="w-4 h-4" /> Delivery Records</h3>
+              <div className="space-y-2">
+                {deliveries.map((d) => (
+                  <div key={d.id} className="border border-slate-100 rounded-lg p-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-700">{d.item_name || "Item"}</span>
+                      <span className="text-xs text-slate-400">{formatDate(d.delivery_date)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-xs text-slate-500 mt-1">
+                      <span>PO Qty: {d.po_quantity}</span>
+                      <span>Received: {d.received_quantity}</span>
+                      <span>Accepted: {d.accepted_quantity}</span>
+                      <span>Short/Excess: {d.short_quantity}/{d.excess_quantity}</span>
+                      <span>Payable: {formatINR(d.payable_amount)}</span>
+                      <span>By: {d.verified_by_name}</span>
+                    </div>
+                    {d.remarks && <div className="text-xs text-slate-400 mt-1">{d.remarks}</div>}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
+
+      {showCancel && <CancelPOModal po={po} onClose={() => setShowCancel(false)} onConfirm={cancelPO} />}
+      {showAmend && <AmendPOModal po={po} onClose={() => setShowAmend(false)} onConfirm={createAmendment} />}
+      {showDelivery && <DeliveryModal po={po} userName={userName} onClose={() => setShowDelivery(false)} onCreated={() => { setShowDelivery(false); refreshPO(); }} />}
     </div>
   );
 }

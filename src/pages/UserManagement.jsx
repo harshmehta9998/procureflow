@@ -11,12 +11,14 @@ import { toast } from "sonner";
 
 const ROLE_LABELS = {
   super_admin: "Super Admin",
+  centre_head: "Centre Head",
   admin: "Institute Admin",
   finance: "Finance",
 };
 
 const ROLE_BADGE = {
   super_admin: "bg-purple-100 text-purple-700 border-purple-200",
+  centre_head: "bg-amber-100 text-amber-700 border-amber-200",
   admin: "bg-blue-100 text-blue-700 border-blue-200",
   finance: "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
@@ -170,6 +172,7 @@ export default function UserManagement() {
               <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Institute Admin</SelectItem>
+                <SelectItem value="centre_head">Centre Head</SelectItem>
                 <SelectItem value="finance">Finance</SelectItem>
                 <SelectItem value="super_admin">Super Admin</SelectItem>
               </SelectContent>
@@ -241,6 +244,7 @@ export default function UserManagement() {
                           <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="admin">Institute Admin</SelectItem>
+                            <SelectItem value="centre_head">Centre Head</SelectItem>
                             <SelectItem value="finance">Finance</SelectItem>
                             <SelectItem value="super_admin">Super Admin</SelectItem>
                           </SelectContent>
