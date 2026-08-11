@@ -8,11 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X, Plus, Trash2 } from "lucide-react";
 import { formatINR, calcTotals } from "@/lib/poUtils";
 
-export default function AmendPOModal({ po, onClose, onConfirm }) {
-  const [reason, setReason] = useState("");
-  const [type, setType] = useState("quantity_change");
+export default function AmendPOModal({ po, onClose, onConfirm, presetItems, presetReason, presetType }) {
+  const [reason, setReason] = useState(presetReason || "");
+  const [type, setType] = useState(presetType || "quantity_change");
   const [items, setItems] = useState(
-    (po.items || []).map((i) => ({ ...i }))
+    (presetItems || po.items || []).map((i) => ({ ...i }))
   );
 
   const updateItem = (idx, field, val) => {

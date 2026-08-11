@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   ArrowLeft, CheckCircle, XCircle, RotateCcw, Wallet, FileDown, Upload,
   History, Paperclip, Building2, User, IndianRupee, FileText, Clock, Calendar, Zap,
-  Ban, GitBranch, PackageCheck
+  Ban, GitBranch, PackageCheck, AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -46,6 +46,7 @@ export default function PODetail() {
   const [showDelivery, setShowDelivery] = useState(false);
   const [showSendBack, setShowSendBack] = useState(false);
   const [sendBackReason, setSendBackReason] = useState("");
+  const [amendPreset, setAmendPreset] = useState(null);
 
   const [payment, setPayment] = useState({
     payment_date: todayISO(),
@@ -229,6 +230,20 @@ export default function PODetail() {
     } catch (err) { toast.error(err.message || "Cancellation failed"); }
   };
 
+  // Build items reflecting the verified received quantities (for "Amend to Received Qty")
+  const buildReceivedItems = () => (po.items || []).map((it) => {
+    const del = deliveries.find((d) => d.item_name === it.item_name);
+    const received = del ? del.received_quantity : it.quantity;
+    const base = received * (it.rate || 0);
+    const amount = Math.round(base * (1 + (it.gst_percent || 0) / 100) * 100) / 100;
+    return { ...it, quantity: received, amount };
+  });
+
+  const amendToReceived = () => {
+    setAmendPreset({ items: buildReceivedItems(), reason: "Amended to match verified received quantity after delivery verification", type: "quantity_change" });
+    setShowAmend(true);
+  };
+
   const createAmendment = async (amendData) => {
     try {
       const newNum = await generateAmendmentNumber(po.po_number);
@@ -272,10 +287,12 @@ export default function PODetail() {
 
   const recordPayment = async () => {
     if (!payment.amount_paid || payment.amount_paid <= 0) return toast.error("Enter valid amount");
+    // Finance releases against the verified payable (received qty × rate × GST), not the PO total,
+    // once a delivery has been verified.
     const newPaid = (po.amount_paid || 0) + Number(payment.amount_paid);
-    if (newPaid > po.grand_total) return toast.error("Payment exceeds PO value");
-    const isFull = newPaid >= po.grand_total;
-    const newOutstanding = po.grand_total - newPaid;
+    if (newPaid > releasableAmount) return toast.error(`Payment exceeds releasable amount (${formatINR(releasableAmount)})`);
+    const isFull = newPaid >= releasableAmount;
+    const newOutstanding = releasableAmount - newPaid;
 
     try {
       await base44.entities.Payment.create({
@@ -392,10 +409,17 @@ export default function PODetail() {
   const canPay = (isFinance || isSuperAdmin) && !hasSchedule && ["payment_pending", "partially_paid"].includes(po.status);
   const canEdit = false;
   const canCancel = isSuperAdmin && !["cancelled", "closed", "fully_paid"].includes(po.status) && !po.is_amendment;
-  const canAmend = isSuperAdmin && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid", "pending_super_admin"].includes(po.status);
+  const canAmend = (isInstituteAdmin || isFinance || isSuperAdmin) && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid", "pending_super_admin"].includes(po.status);
   const canReceiveDelivery = (isInstituteAdmin || isSuperAdmin) && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
   const canSendBack = (isFinance || isSuperAdmin) && po.status === "payment_pending";
   const canResubmit = isInstituteAdmin && po.status === "sent_back";
+  // Verified payable — what Finance may actually release, based on delivery verification.
+  const verifiedPayable = deliveries.reduce((s, d) => s + (d.payable_amount || 0), 0);
+  const hasDelivery = deliveries.length > 0;
+  const releasableAmount = hasDelivery ? verifiedPayable : (po.grand_total || 0);
+  const amountToRelease = Math.max(0, releasableAmount - (po.amount_paid || 0));
+  const shortDeliveries = deliveries.filter((d) => (d.short_quantity || 0) > 0);
+  const excessDeliveries = deliveries.filter((d) => (d.excess_quantity || 0) > 0);
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -450,6 +474,28 @@ export default function PODetail() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Delivery & Payable Summary — shows Finance the verified amount to release */}
+      {hasDelivery && (
+        <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <PackageCheck className="w-5 h-5 text-teal-600" />
+            <h3 className="font-semibold text-teal-800 text-sm">Delivery & Payable Summary</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white/60 rounded-lg p-3"><div className="text-xs text-teal-600 font-medium">PO Value</div><div className="text-lg font-bold text-slate-800">{formatINR(po.grand_total)}</div></div>
+            <div className="bg-white/60 rounded-lg p-3"><div className="text-xs text-teal-600 font-medium">Verified Payable</div><div className="text-lg font-bold text-teal-700">{formatINR(verifiedPayable)}</div></div>
+            <div className="bg-white/60 rounded-lg p-3"><div className="text-xs text-teal-600 font-medium">Already Released</div><div className="text-lg font-bold text-slate-800">{formatINR(po.amount_paid || 0)}</div></div>
+            <div className="bg-white/60 rounded-lg p-3"><div className="text-xs text-teal-600 font-medium">Amount to Release</div><div className="text-lg font-bold text-emerald-700">{formatINR(amountToRelease)}</div></div>
+          </div>
+          {releasableAmount < (po.grand_total || 0) && (
+            <div className="text-xs text-amber-700 mt-3 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>Received quantity is less than the PO. Finance will release only <strong>{formatINR(verifiedPayable)}</strong> (not the full PO value). {shortDeliveries.length > 0 && `${shortDeliveries.length} item(s) short — see next-step action in Delivery Records.`}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -644,11 +690,17 @@ export default function PODetail() {
               <h3 className="font-semibold text-slate-800 text-sm">Record Payment</h3>
               <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1">
                 <Row label="PO Value" value={formatINR(po.grand_total)} />
-                <Row label="Already Paid" value={formatINR(po.amount_paid)} />
-                <Row label="Outstanding" value={formatINR(po.outstanding_amount)} />
+                {hasDelivery && <Row label="Verified Payable" value={formatINR(verifiedPayable)} />}
+                <Row label="Already Released" value={formatINR(po.amount_paid || 0)} />
+                <Row label="Amount to Release" value={formatINR(amountToRelease)} />
               </div>
+              {hasDelivery && (
+                <div className="text-xs text-teal-700 bg-teal-50 rounded-lg px-3 py-2 border border-teal-200">
+                  Release is capped at the verified payable ({formatINR(verifiedPayable)}) based on received quantities.
+                </div>
+              )}
               <div><Label className="text-xs">Payment Date *</Label><Input type="date" value={payment.payment_date} onChange={(e) => setPayment({ ...payment, payment_date: e.target.value })} className="h-9 mt-1" /></div>
-              <div><Label className="text-xs">Amount *</Label><Input type="number" value={payment.amount_paid} onChange={(e) => setPayment({ ...payment, amount_paid: e.target.value })} className="h-9 mt-1" placeholder={po.outstanding_amount} /></div>
+              <div><Label className="text-xs">Amount *</Label><Input type="number" value={payment.amount_paid} onChange={(e) => setPayment({ ...payment, amount_paid: e.target.value })} className="h-9 mt-1" placeholder={amountToRelease} /></div>
               <div><Label className="text-xs">Payment Mode</Label>
                 <Select value={payment.payment_mode} onValueChange={(v) => setPayment({ ...payment, payment_mode: v })}>
                   <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
@@ -741,6 +793,21 @@ export default function PODetail() {
           {deliveries.length > 0 && (
             <Card className="p-5">
               <h3 className="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-2"><PackageCheck className="w-4 h-4" /> Delivery Records</h3>
+              {(shortDeliveries.length > 0 || excessDeliveries.length > 0) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 text-sm">
+                    <div className="font-medium text-amber-800">Next-step action required</div>
+                    {shortDeliveries.length > 0 && <div className="text-amber-700 text-xs mt-0.5">{shortDeliveries.length} item(s) received <strong>short</strong>. Finance will release only for the received quantity. You can amend the PO to match the received quantity (and close the short balance), or leave it open to receive the balance later.</div>}
+                    {excessDeliveries.length > 0 && <div className="text-amber-700 text-xs mt-0.5">{excessDeliveries.length} item(s) received in <strong>excess</strong>. Return the excess to the vendor, or amend the PO to the received quantity.</div>}
+                  </div>
+                  {canAmend && (
+                    <Button size="sm" variant="outline" className="border-indigo-200 text-indigo-700 flex-shrink-0" onClick={amendToReceived}>
+                      <GitBranch className="w-3.5 h-3.5 mr-1" /> Amend to Received Qty
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 {deliveries.map((d) => (
                   <div key={d.id} className="border border-slate-100 rounded-lg p-3 text-sm">
@@ -766,7 +833,7 @@ export default function PODetail() {
       </div>
 
       {showCancel && <CancelPOModal po={po} onClose={() => setShowCancel(false)} onConfirm={cancelPO} />}
-      {showAmend && <AmendPOModal po={po} onClose={() => setShowAmend(false)} onConfirm={createAmendment} />}
+      {showAmend && <AmendPOModal po={po} presetItems={amendPreset?.items} presetReason={amendPreset?.reason} presetType={amendPreset?.type} onClose={() => { setShowAmend(false); setAmendPreset(null); }} onConfirm={createAmendment} />}
       {showDelivery && <DeliveryModal po={po} userName={userName} onClose={() => setShowDelivery(false)} onCreated={() => { setShowDelivery(false); refreshPO(); }} />}
       {showSendBack && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowSendBack(false)}>
