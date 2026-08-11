@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatCard, EmptyState } from "@/components/po/Shared";
 import { formatINR, formatDate } from "@/lib/poUtils";
-import { History, Filter } from "lucide-react";
+import { History, Filter, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function PaymentHistory() {
   const { isSuperAdmin, isFinance, isCentreHead, instituteId, instituteIds } = useUserRole();
+  const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,11 +90,12 @@ export default function PaymentHistory() {
                 <th className="text-right px-4 py-3 font-medium">Amount</th>
                 <th className="text-left px-4 py-3 font-medium">Mode</th>
                 <th className="text-left px-4 py-3 font-medium">Reference</th>
+                <th className="text-left px-4 py-3 font-medium">Proof</th>
                 <th className="text-left px-4 py-3 font-medium">Recorded By</th>
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => window.location.href = `/po/${p.po_id}`}>
+                  <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/po/${p.po_id}`)}>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(p.payment_date)}</td>
                     <td className="px-4 py-3 font-medium text-slate-800">{p.po_number}</td>
                     <td className="px-4 py-3 text-slate-600">{p.institute_name}</td>
@@ -101,6 +104,13 @@ export default function PaymentHistory() {
                     <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatINR(p.amount_paid)}</td>
                     <td className="px-4 py-3 text-slate-600">{p.payment_mode}</td>
                     <td className="px-4 py-3 text-slate-600">{p.reference_number || "-"}</td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      {p.attachment_url ? (
+                        <a href={p.attachment_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-600 text-xs font-medium hover:underline">
+                          <ExternalLink className="w-3.5 h-3.5" /> View
+                        </a>
+                      ) : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{p.recorded_by_name || "-"}</td>
                   </tr>
                 ))}

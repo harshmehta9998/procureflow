@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarClock, Plus, Filter, X, Upload, CheckCircle, XCircle, Wallet, Play, Pause } from "lucide-react";
+import { CalendarClock, Plus, Filter, X, Upload, CheckCircle, XCircle, Wallet, Play, Pause, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 export default function RecurringPayments() {
@@ -96,6 +96,19 @@ export default function RecurringPayments() {
   };
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
+
+  // Recurring Payments are confidential — restricted to Super Admin and Finance only.
+  if (isInstituteAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <ShieldAlert className="w-12 h-12 text-slate-300 mb-3" />
+        <div className="text-slate-700 font-medium text-lg">Access Restricted</div>
+        <p className="text-sm text-slate-500 mt-1 max-w-sm">
+          Recurring Payments are confidential and only accessible to Super Admin and Finance.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

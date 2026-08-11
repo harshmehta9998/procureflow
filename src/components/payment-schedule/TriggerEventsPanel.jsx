@@ -13,8 +13,18 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
   const [saving, setSaving] = useState(null);
   const [recalculating, setRecalculating] = useState(false);
   const [pendingEvent, setPendingEvent] = useState(null);
+  const [receivedQtys, setReceivedQtys] = useState([]);
+  const [verifying, setVerifying] = useState(false);
 
   const isDeliveryRelated = (eventKey) => ["delivery", "material_dispatched"].includes(eventKey);
+
+  // GST + payable auto-calc per item based on received quantity
+  const payableFor = (item, qty) => {
+    const q = Number(qty) || 0;
+    const base = q * (item.rate || 0);
+    const gst = base * ((item.gst_percent || 0) / 100);
+    return { base, gst, total: base + gst };
+  };
 
   // Preview which milestones would be affected if this event is marked now
   const affectedMilestones = useMemo(() => {
@@ -31,6 +41,17 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
       })
       .filter((x) => x.changed);
   }, [pendingEvent, po, milestones]);
+
+  const deliveryTotals = useMemo(() => {
+    return (po.items || []).reduce((acc, item, i) => {
+      const { base, gst, total } = payableFor(item, receivedQtys[i] ?? item.quantity);
+      acc.baseTotal += base; acc.gstTotal += gst; acc.grandTotal += total;
+      const diff = (receivedQtys[i] ?? item.quantity) - (item.quantity || 0);
+      if (diff < 0) acc.shortCount += 1;
+      if (diff > 0) acc.excessCount += 1;
+      return acc;
+    }, { baseTotal: 0, gstTotal: 0, grandTotal: 0, shortCount: 0, excessCount: 0 });
+  }, [po, receivedQtys]);
 
   // Update PO event date, then recalculate & persist all affected milestone due dates.
   const applyEventChange = async (eventKey, poUpdate, auditLabel) => {
@@ -62,21 +83,61 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     if (!event || event.auto) return;
     const isDone = isEventCompleted(eventKey, po);
     if (isDone) {
-      // Unmarking is safe — no confirmation needed
       applyEventChange(eventKey, { [event.poField]: "" }, `${event.label} Unmarked`).then(() =>
         toast.success(`${event.label} unmarked`)
       );
     } else {
-      // Marking requires verification/confirmation
       setPendingEvent(eventKey);
+      if (isDeliveryRelated(eventKey)) {
+        setReceivedQtys((po.items || []).map((i) => i.quantity || 0));
+      }
     }
   };
 
+  // Confirm a trigger event. For delivery-related events, first record verified quantities
+  // (with GST auto-calculated) as DeliveryVerification records, then mark the event.
   const confirmPendingEvent = async () => {
     if (!pendingEvent) return;
     const event = TRIGGER_EVENTS.find((e) => e.value === pendingEvent);
-    const poUpdate = { [event.poField]: todayISO() };
     const key = pendingEvent;
+
+    if (isDeliveryRelated(key)) {
+      setVerifying(true);
+      try {
+        const items = po.items || [];
+        const today = todayISO();
+        const records = items.map((item, i) => {
+          const received = Number(receivedQtys[i] ?? item.quantity) || 0;
+          const poQty = item.quantity || 0;
+          const short = Math.max(0, poQty - received);
+          const excess = Math.max(0, received - poQty);
+          const { total } = payableFor(item, received);
+          const action = short > 0 ? "receive_balance_later" : excess > 0 ? "return_excess" : "close_with_received";
+          return {
+            po_id: po.id, po_number: po.po_number, institute_id: po.institute_id, institute_name: po.institute_name,
+            vendor_id: po.vendor_id, vendor_name: po.vendor_name,
+            item_name: item.item_name || "Item", po_quantity: poQty, received_quantity: received,
+            short_quantity: short, excess_quantity: excess, accepted_quantity: received, returned_quantity: 0,
+            unit_price: item.rate || 0, payable_amount: Math.round(total * 100) / 100,
+            delivery_date: today, action_taken: action, balance_pending: short,
+            verified_by_name: userName, status: short > 0 ? "balance_pending" : "verified",
+          };
+        });
+        if (records.length > 0) {
+          await base44.entities.DeliveryVerification.bulkCreate(records);
+        }
+        await logAudit("DeliveryVerification", po.id, po.po_number, userName, `${event.label} — Quantity Verified`, "", `${records.length} item(s) · ${formatINR(deliveryTotals.grandTotal)}`, "Auto GST computed on received qty");
+        toast.success(`Delivery verified — ${records.length} item(s), payable ${formatINR(deliveryTotals.grandTotal)} (GST auto-calculated)`);
+      } catch (err) {
+        toast.error("Quantity verification failed");
+        setVerifying(false);
+        return;
+      } finally {
+        setVerifying(false);
+      }
+    }
+
+    const poUpdate = { [event.poField]: todayISO() };
     setPendingEvent(null);
     await applyEventChange(key, poUpdate, `${event.label} Marked`);
     toast.success(`${event.label} marked complete`);
@@ -87,7 +148,6 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     setSaving("custom");
     try {
       await base44.entities.PurchaseOrder.update(po.id, { custom_event_date: date, custom_event_name: customEvent || po.custom_event_name || "Custom Event" });
-      // Custom event doesn't drive auto milestone calc unless a milestone uses custom_manual trigger
       const updatedPo = { ...po, custom_event_date: date, custom_event_name: customEvent || po.custom_event_name || "Custom Event" };
       const updates = recalculateMilestoneDueDates(milestones, updatedPo);
       if (updates.length > 0) {
@@ -100,7 +160,6 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     finally { setSaving(null); }
   };
 
-  // Manual recalculation button — recompute all milestone due dates from current PO event dates
   const recalcAll = async () => {
     setRecalculating(true);
     try {
@@ -121,6 +180,7 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
   };
 
   const pendingEventObj = pendingEvent ? TRIGGER_EVENTS.find((e) => e.value === pendingEvent) : null;
+  const isDeliveryEvent = pendingEventObj && isDeliveryRelated(pendingEventObj.value);
 
   return (
     <div className="space-y-3">
@@ -184,13 +244,13 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
 
       {/* Verification / Confirmation Modal */}
       {pendingEventObj && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPendingEvent(null)}>
-          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => !verifying && setPendingEvent(null)}>
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center"><AlertTriangle className="w-5 h-5 text-amber-600" /></div>
               <div>
-                <h3 className="font-semibold text-slate-800">Confirm Trigger Event</h3>
-                <p className="text-xs text-slate-500">Verify before marking as complete</p>
+                <h3 className="font-semibold text-slate-800">{isDeliveryEvent ? "Verify Delivery & Quantities" : "Confirm Trigger Event"}</h3>
+                <p className="text-xs text-slate-500">{isDeliveryEvent ? "Enter received quantities — GST & payable auto-calculated" : "Verify before marking as complete"}</p>
               </div>
             </div>
 
@@ -200,19 +260,65 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
                 <div className="text-xs text-slate-500 mt-0.5">Will be marked complete on {formatDate(todayISO())}.</div>
               </div>
 
-              {/* Stock / quantity verification for delivery-related events */}
-              {isDeliveryRelated(pendingEventObj.value) && (po.items || []).length > 0 && (
+              {/* Quantity verification for delivery-related events */}
+              {isDeliveryEvent && (po.items || []).length > 0 && (
                 <div className="border border-amber-200 rounded-lg p-3 bg-amber-50/50">
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 mb-2"><PackageCheck className="w-3.5 h-3.5" /> Verify Stock / Quantities</div>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {po.items.map((it, i) => (
-                      <div key={i} className="flex justify-between text-xs text-slate-600">
-                        <span className="truncate pr-2">{it.item_name || "Item"}</span>
-                        <span className="font-medium whitespace-nowrap">{it.quantity} {it.unit} · {formatINR(it.amount)}</span>
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 mb-2"><PackageCheck className="w-3.5 h-3.5" /> Verify Received Quantities vs PO</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-slate-500">
+                        <tr className="border-b border-amber-200">
+                          <th className="text-left py-1.5 pr-2 font-medium">Item</th>
+                          <th className="text-right py-1.5 px-2 font-medium">PO Qty</th>
+                          <th className="text-right py-1.5 px-2 font-medium">Received</th>
+                          <th className="text-right py-1.5 px-2 font-medium">Rate</th>
+                          <th className="text-right py-1.5 px-2 font-medium">GST%</th>
+                          <th className="text-right py-1.5 px-2 font-medium">GST Amt</th>
+                          <th className="text-right py-1.5 pl-2 font-medium">Payable</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-100">
+                        {po.items.map((item, i) => {
+                          const { base, gst, total } = payableFor(item, receivedQtys[i] ?? item.quantity);
+                          const diff = (Number(receivedQtys[i] ?? item.quantity) || 0) - (item.quantity || 0);
+                          return (
+                            <tr key={i}>
+                              <td className="py-1.5 pr-2 text-slate-700">
+                                <div className="truncate max-w-[140px]">{item.item_name || "Item"}</div>
+                                {diff !== 0 && (
+                                  <div className={`text-[10px] font-medium ${diff < 0 ? "text-red-600" : "text-amber-600"}`}>
+                                    {diff < 0 ? `Short ${Math.abs(diff)}` : `Excess +${diff}`}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2 text-right text-slate-600 whitespace-nowrap">{item.quantity} {item.unit}</td>
+                              <td className="py-1.5 px-2 text-right">
+                                <Input type="number" min={0} value={receivedQtys[i] ?? item.quantity} onChange={(e) => setReceivedQtys((prev) => { const n = [...prev]; n[i] = Number(e.target.value); return n; })} className="h-7 w-20 text-right text-xs" disabled={verifying} />
+                              </td>
+                              <td className="py-1.5 px-2 text-right text-slate-600">{formatINR(item.rate)}</td>
+                              <td className="py-1.5 px-2 text-right text-slate-600">{item.gst_percent || 0}%</td>
+                              <td className="py-1.5 px-2 text-right text-slate-600">{formatINR(gst)}</td>
+                              <td className="py-1.5 pl-2 text-right font-medium text-slate-800 whitespace-nowrap">{formatINR(total)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t border-amber-200">
+                        <tr className="font-semibold text-slate-800">
+                          <td className="py-2 pr-2" colSpan={5}>Total (auto-calculated)</td>
+                          <td className="py-2 px-2 text-right">{formatINR(deliveryTotals.gstTotal)}</td>
+                          <td className="py-2 pl-2 text-right">{formatINR(deliveryTotals.grandTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
-                  <div className="text-[11px] text-amber-600 mt-2">Confirm that the received quantity & quality match the PO before proceeding.</div>
+                  {(deliveryTotals.shortCount > 0 || deliveryTotals.excessCount > 0) && (
+                    <div className="text-[11px] mt-2 flex gap-3">
+                      {deliveryTotals.shortCount > 0 && <span className="text-red-600">⚠ {deliveryTotals.shortCount} item(s) short — balance will be tracked</span>}
+                      {deliveryTotals.excessCount > 0 && <span className="text-amber-600">⚠ {deliveryTotals.excessCount} item(s) in excess</span>}
+                    </div>
+                  )}
+                  <div className="text-[11px] text-amber-600 mt-1.5">A Delivery Verification record will be saved per item with the computed payable (incl. GST).</div>
                 </div>
               )}
 
@@ -235,8 +341,10 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
             </div>
 
             <div className="flex gap-2 mt-5">
-              <Button variant="outline" className="flex-1" onClick={() => setPendingEvent(null)}>Cancel</Button>
-              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={confirmPendingEvent}><CheckCircle className="w-4 h-4 mr-1.5" /> Confirm & Mark</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setPendingEvent(null)} disabled={verifying}>Cancel</Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={confirmPendingEvent} disabled={verifying}>
+                {verifying ? <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> Verifying...</> : <><CheckCircle className="w-4 h-4 mr-1.5" /> {isDeliveryEvent ? "Verify & Mark Delivered" : "Confirm & Mark"}</>}
+              </Button>
             </div>
           </div>
         </div>

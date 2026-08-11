@@ -44,6 +44,8 @@ export default function PODetail() {
   const [showCancel, setShowCancel] = useState(false);
   const [showAmend, setShowAmend] = useState(false);
   const [showDelivery, setShowDelivery] = useState(false);
+  const [showSendBack, setShowSendBack] = useState(false);
+  const [sendBackReason, setSendBackReason] = useState("");
 
   const [payment, setPayment] = useState({
     payment_date: todayISO(),
@@ -152,6 +154,43 @@ export default function PODetail() {
   const rejectSuperAdmin = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("super_admin_rejected", "Super Admin Rejected", rejectionReason); setShowReject(false); };
   const sendBack = () => updateStatus("sent_back", "Sent Back for Revision", "Requires modification");
   const closePO = () => updateStatus("closed", "PO Closed", "Closed by Finance");
+
+  // Finance cross-check: after Super Admin approval, Finance can send the PO back to the
+  // Institute Admin with a detailed description of what's wrong (e.g. wrong entity raised).
+  const sendBackToAdmin = async () => {
+    if (!sendBackReason.trim()) return toast.error("Please describe what needs correction");
+    try {
+      await base44.entities.PurchaseOrder.update(id, {
+        status: "sent_back",
+        rejection_reason: sendBackReason.trim(),
+        super_admin_status: "approved", // preserve the approval already given
+      });
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "Finance Sent Back PO to Institute Admin", po.status, "sent_back", sendBackReason.trim());
+      toast.success("PO sent back to Institute Admin for correction");
+      setShowSendBack(false);
+      setSendBackReason("");
+      refreshPO();
+    } catch (err) {
+      toast.error("Failed to send back");
+    }
+  };
+
+  // Institute Admin re-submits a sent-back PO after correcting it → back to Centre Head approval
+  const resubmitPO = async () => {
+    try {
+      await base44.entities.PurchaseOrder.update(id, {
+        status: "pending_centre_head",
+        rejection_reason: "",
+        centre_head_status: "pending",
+        super_admin_status: "pending",
+      });
+      await logAudit("PurchaseOrder", id, po.po_number, userName, "PO Re-submitted after Correction", "sent_back", "pending_centre_head", "Re-submitted by Institute Admin");
+      toast.success("PO re-submitted for approval");
+      refreshPO();
+    } catch (err) {
+      toast.error("Failed to re-submit");
+    }
+  };
 
   const cancelPO = async (cancelData) => {
     try {
@@ -355,6 +394,8 @@ export default function PODetail() {
   const canCancel = isSuperAdmin && !["cancelled", "closed", "fully_paid"].includes(po.status) && !po.is_amendment;
   const canAmend = isSuperAdmin && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid", "pending_super_admin"].includes(po.status);
   const canReceiveDelivery = (isInstituteAdmin || isSuperAdmin) && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
+  const canSendBack = (isFinance || isSuperAdmin) && po.status === "payment_pending";
+  const canResubmit = isInstituteAdmin && po.status === "sent_back";
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -392,6 +433,24 @@ export default function PODetail() {
             <Clock className="w-4 h-4" /> This PO is <strong>{od} days overdue</strong>. Outstanding: {formatINR(po.outstanding_amount)}
           </div>
         )
+      )}
+
+      {/* Sent-back banner — Institute Admin needs to correct & re-raise */}
+      {po.status === "sent_back" && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <RotateCcw className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="font-semibold text-amber-800 text-sm">This PO has been sent back for correction</div>
+              <p className="text-sm text-amber-700 mt-1">{po.rejection_reason || "Please review and correct the PO, then re-submit for approval."}</p>
+              {canResubmit && (
+                <Button className="mt-3 bg-amber-600 hover:bg-amber-700" onClick={resubmitPO}>
+                  <CheckCircle className="w-4 h-4 mr-1.5" /> I've corrected it — Re-submit for Approval
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -566,10 +625,13 @@ export default function PODetail() {
             {canAmend && (
               <Button variant="outline" className="w-full border-indigo-200 text-indigo-700" onClick={() => setShowAmend(true)}><GitBranch className="w-4 h-4 mr-1.5" /> Create PO Amendment</Button>
             )}
+            {canSendBack && (
+              <Button variant="outline" className="w-full border-amber-300 text-amber-700" onClick={() => setShowSendBack(true)}><RotateCcw className="w-4 h-4 mr-1.5" /> Send Back to Institute Admin</Button>
+            )}
             {canCancel && (
               <Button variant="outline" className="w-full border-rose-200 text-rose-600" onClick={() => setShowCancel(true)}><Ban className="w-4 h-4 mr-1.5" /> Cancel PO</Button>
             )}
-            {!canApprove && !canApproveSuper && !canPay && !canCancel && !canAmend && !canReceiveDelivery && po.status !== "fully_paid" && (
+            {!canApprove && !canApproveSuper && !canPay && !canSendBack && !canCancel && !canAmend && !canReceiveDelivery && po.status !== "fully_paid" && (
               <div className="text-sm text-slate-400 text-center py-2">No actions available for your role</div>
             )}
             {po.status === "closed" && <div className="text-sm text-slate-400 text-center py-2">PO is closed</div>}
@@ -706,6 +768,39 @@ export default function PODetail() {
       {showCancel && <CancelPOModal po={po} onClose={() => setShowCancel(false)} onConfirm={cancelPO} />}
       {showAmend && <AmendPOModal po={po} onClose={() => setShowAmend(false)} onConfirm={createAmendment} />}
       {showDelivery && <DeliveryModal po={po} userName={userName} onClose={() => setShowDelivery(false)} onCreated={() => { setShowDelivery(false); refreshPO(); }} />}
+      {showSendBack && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowSendBack(false)}>
+          <div className="bg-white rounded-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center"><RotateCcw className="w-5 h-5 text-amber-600" /></div>
+              <div>
+                <h3 className="font-semibold text-slate-800">Send Back to Institute Admin</h3>
+                <p className="text-xs text-slate-500">PO will be returned for correction</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="text-sm text-slate-600 bg-amber-50 rounded-lg p-3">
+                <div className="font-medium text-amber-800 text-xs mb-1">Cross-check reminder</div>
+                Verify the PO is raised correctly — correct institute, vendor, items, entity, amounts. Describe below what the Institute Admin must fix or re-raise.
+              </div>
+              <div>
+                <Label className="text-xs">Detailed Description / Reason *</Label>
+                <Textarea
+                  value={sendBackReason}
+                  onChange={(e) => setSendBackReason(e.target.value)}
+                  rows={5}
+                  className="mt-1"
+                  placeholder="e.g. This PO should have been raised from the Mumbai entity, not Pune. Please re-raise from the correct institute. Also verify the GST rate on item 2..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setShowSendBack(false)}>Cancel</Button>
+              <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={sendBackToAdmin}><RotateCcw className="w-4 h-4 mr-1.5" /> Confirm Send Back</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
