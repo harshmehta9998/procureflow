@@ -33,7 +33,7 @@ import Profile from '@/pages/Profile';
 // Add page imports here
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, authChecked } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -53,6 +53,13 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+  }
+
+  // No active session and no error yet — send the user to the login page.
+  // (Covers public apps where the settings endpoint doesn't 403.)
+  if (authChecked && !isAuthenticated) {
+    navigateToLogin();
+    return null;
   }
 
   // Render the main app
