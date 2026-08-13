@@ -8,7 +8,7 @@ import { formatINR, formatDate, todayISO, logAudit } from "@/lib/poUtils";
 import { CheckCircle, Circle, Zap, RefreshCw, AlertTriangle, PackageCheck } from "lucide-react";
 import { toast } from "sonner";
 
-export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate, canEdit, userName }) {
+export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate, canEdit, userName, isSuperAdmin }) {
   const [customEvent, setCustomEvent] = useState("");
   const [saving, setSaving] = useState(null);
   const [recalculating, setRecalculating] = useState(false);
@@ -83,6 +83,16 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     if (!event || event.auto) return;
     const isDone = isEventCompleted(eventKey, po);
     if (isDone) {
+      // Once a trigger has been activated, only Super Admin can cancel/deactivate it.
+      if (!isSuperAdmin) {
+        toast.error("Only Super Admin can cancel an activated trigger");
+        return;
+      }
+      // Clearing a delivery-related event also resets its verified delivery records
+      // so the payable/outstanding reverts to the PO value.
+      if (isDeliveryRelated(eventKey)) {
+        base44.entities.DeliveryVerification.deleteMany({ po_id: po.id }).catch(() => {});
+      }
       applyEventChange(eventKey, { [event.poField]: "" }, `${event.label} Unmarked`).then(() =>
         toast.success(`${event.label} unmarked`)
       );
@@ -100,6 +110,8 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     if (!pendingEvent) return;
     const event = TRIGGER_EVENTS.find((e) => e.value === pendingEvent);
     const key = pendingEvent;
+    let deliveryOutstanding = null;
+    let msSync = [];
 
     if (isDeliveryRelated(key)) {
       setVerifying(true);
@@ -123,11 +135,27 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
             verified_by_name: userName, status: short > 0 ? "balance_pending" : "verified",
           };
         });
+        // Idempotent: clear any previous delivery verifications so re-verifying never
+        // accumulates duplicate payable amounts (fixes trigger toggle increasing value).
+        await base44.entities.DeliveryVerification.deleteMany({ po_id: po.id });
         if (records.length > 0) {
           await base44.entities.DeliveryVerification.bulkCreate(records);
         }
-        await logAudit("DeliveryVerification", po.id, po.po_number, userName, `${event.label} — Quantity Verified`, "", `${records.length} item(s) · ${formatINR(deliveryTotals.grandTotal)}`, "Auto GST computed on received qty");
-        toast.success(`Delivery verified — ${records.length} item(s), payable ${formatINR(deliveryTotals.grandTotal)} (GST auto-calculated)`);
+        // Sync milestone amounts + PO outstanding to the verified payable (received qty),
+        // so Finance Calendar / Dashboard / Reports reflect the actual received quantity.
+        const verifiedTotal = records.reduce((s, r) => s + (r.payable_amount || 0), 0);
+        const paidSoFar = po.amount_paid || 0;
+        msSync = (milestones || [])
+          .filter((m) => m.status !== "cancelled" && m.status !== "paid")
+          .map((m) => {
+            const newCalc = m.amount_type === "percentage"
+              ? Math.round((Number(m.amount || 0) / 100) * verifiedTotal * 100) / 100
+              : Number(m.calculated_amount || 0);
+            return { id: m.id, calculated_amount: newCalc, outstanding_amount: Math.max(0, newCalc - (m.amount_paid || 0)) };
+          });
+        deliveryOutstanding = Math.max(0, verifiedTotal - paidSoFar);
+        await logAudit("DeliveryVerification", po.id, po.po_number, userName, `${event.label} — Quantity Verified`, "", `${records.length} item(s) · ${formatINR(verifiedTotal)}`, "Auto GST on received qty; milestones & PO outstanding synced");
+        toast.success(`Delivery verified — ${records.length} item(s), payable ${formatINR(verifiedTotal)} (GST auto-calculated)`);
       } catch (err) {
         toast.error("Quantity verification failed");
         setVerifying(false);
@@ -138,8 +166,16 @@ export default function TriggerEventsPanel({ po, milestones = [], onEventUpdate,
     }
 
     const poUpdate = { [event.poField]: todayISO() };
+    if (deliveryOutstanding !== null) poUpdate.outstanding_amount = deliveryOutstanding;
     setPendingEvent(null);
+    // Set the PO event date + recalc milestone due dates.
     await applyEventChange(key, poUpdate, `${event.label} Marked`);
+    // Re-apply the verified-payable sync AFTER due-date recalc so outstanding_amount
+    // isn't reverted by the recalc step (which uses stale milestone data).
+    if (msSync.length) {
+      await base44.entities.PaymentMilestone.bulkUpdate(msSync);
+      await onEventUpdate();
+    }
     toast.success(`${event.label} marked complete`);
   };
 

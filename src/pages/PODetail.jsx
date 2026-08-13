@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
 import { StatusBadge, PaymentBadge } from "@/components/po/Shared";
-import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS, logAudit, todayISO, generateAmendmentNumber, AMENDMENT_LABELS, canApproveAtCentreHead } from "@/lib/poUtils";
+import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS, logAudit, todayISO, generateAmendmentNumber, calcTotals, AMENDMENT_LABELS, canApproveAtCentreHead } from "@/lib/poUtils";
 import { calculateDueDate, computePOPaymentStatus, computePOTotals } from "@/lib/paymentScheduleUtils";
 import ScheduleView from "@/components/payment-schedule/ScheduleView";
 import TriggerEventsPanel from "@/components/payment-schedule/TriggerEventsPanel";
@@ -47,6 +47,8 @@ export default function PODetail() {
   const [showSendBack, setShowSendBack] = useState(false);
   const [sendBackReason, setSendBackReason] = useState("");
   const [amendPreset, setAmendPreset] = useState(null);
+  const [showCHSendBack, setShowCHSendBack] = useState(false);
+  const [chSendBackReason, setChSendBackReason] = useState("");
 
   const [payment, setPayment] = useState({
     payment_date: todayISO(),
@@ -153,7 +155,12 @@ export default function PODetail() {
   };
   const rejectPO = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("centre_head_rejected", "Centre Head Rejected", rejectionReason); setShowReject(false); };
   const rejectSuperAdmin = () => { if (!rejectionReason) return toast.error("Please provide rejection reason"); updateStatus("super_admin_rejected", "Super Admin Rejected", rejectionReason); setShowReject(false); };
-  const sendBack = () => updateStatus("sent_back", "Sent Back for Revision", "Requires modification");
+  const sendBack = () => {
+    if (!chSendBackReason.trim()) return toast.error("Please provide a clear reason for sending back");
+    updateStatus("sent_back", "Sent Back for Revision", chSendBackReason.trim());
+    setShowCHSendBack(false);
+    setChSendBackReason("");
+  };
   const closePO = () => updateStatus("closed", "PO Closed", "Closed by Finance");
 
   // Finance cross-check: after Super Admin approval, Finance can send the PO back to the
@@ -244,34 +251,56 @@ export default function PODetail() {
     setShowAmend(true);
   };
 
+  const buildAmendedNumber = (currentNumber) => {
+    const match = currentNumber.match(/\s\(([A-Z])\)$/);
+    if (match) {
+      const next = String.fromCharCode(match[1].charCodeAt(0) + 1);
+      return currentNumber.replace(/\s\(([A-Z])\)$/, ` (${next})`);
+    }
+    return `${currentNumber} (A)`;
+  };
+
   const createAmendment = async (amendData) => {
     try {
-      const newNum = await generateAmendmentNumber(po.po_number);
-      const newGrand = Number(amendData.grandTotal || 0);
-      const created = await base44.entities.PurchaseOrder.create({
-        ...po,
-        id: undefined, created_date: undefined, updated_date: undefined,
-        po_number: newNum,
-        parent_po_id: id,
-        parent_po_number: po.po_number,
+      const totals = calcTotals(amendData.items);
+      const newGrand = Number(amendData.grandTotal || totals.grandTotal || 0);
+      const paid = po.amount_paid || 0; // preserve already-paid amount
+      const newOutstanding = Math.max(0, newGrand - paid);
+      const originalNumber = po.po_number;
+      const rootParent = po.parent_po_number || originalNumber;
+      const amendedNumber = buildAmendedNumber(originalNumber);
+      const wasCancelled = po.status === "cancelled";
+      await base44.entities.PurchaseOrder.update(id, {
+        po_number: amendedNumber,
+        parent_po_number: rootParent,
         is_amendment: true,
         amendment_reason: amendData.reason,
         amendment_type: amendData.type,
-        status: "pending_centre_head",
-        centre_head_status: "pending",
-        centre_head_approved_by: "", centre_head_approved_date: "",
-        amount_paid: 0, outstanding_amount: newGrand,
-        payment_status: "none",
-        approved_date: "",
-        cancelled: false, cancelled_by: "", cancelled_date: "", cancellation_reason: "",
-        deleted: false,
-        grand_total: newGrand,
         items: amendData.items,
+        subtotal: totals.subtotal,
+        gst_total: totals.gstTotal,
+        grand_total: newGrand,
+        amount_paid: paid,
+        outstanding_amount: newOutstanding,
+        cancelled: false, cancelled_by: "", cancelled_date: "", cancellation_reason: "",
+        status: wasCancelled ? "payment_pending" : po.status,
       });
-      await logAudit("PurchaseOrder", created.id, newNum, userName, "PO Amendment Created", po.po_number, newNum, amendData.reason);
-      toast.success("Amendment created: " + newNum);
+      // Recompute percentage milestone amounts against the new PO value & sync outstanding (paid preserved per milestone)
+      const ms = await base44.entities.PaymentMilestone.filter({ po_id: id });
+      const msUpdates = ms
+        .filter((m) => m.status !== "cancelled")
+        .map((m) => {
+          const newCalc = m.amount_type === "percentage"
+            ? Math.round((Number(m.amount || 0) / 100) * newGrand * 100) / 100
+            : Number(m.calculated_amount || 0);
+          return { id: m.id, calculated_amount: newCalc, outstanding_amount: Math.max(0, newCalc - (m.amount_paid || 0)) };
+        });
+      if (msUpdates.length) await base44.entities.PaymentMilestone.bulkUpdate(msUpdates);
+      await logAudit("PurchaseOrder", id, amendedNumber, userName, "PO Amended (in-place)", originalNumber, amendedNumber, `${amendData.type || "amendment"}: ${amendData.reason} · New value ${formatINR(newGrand)} · Paid preserved ${formatINR(paid)}`);
+      toast.success(`PO amended: ${amendedNumber}`);
       setShowAmend(false);
-      navigate(`/po/${created.id}`);
+      setAmendPreset(null);
+      refreshPO();
     } catch (err) { toast.error(err.message || "Amendment failed"); }
   };
 
@@ -409,7 +438,7 @@ export default function PODetail() {
   const canPay = (isFinance || isSuperAdmin) && !hasSchedule && ["payment_pending", "partially_paid"].includes(po.status);
   const canEdit = false;
   const canCancel = isSuperAdmin && !["cancelled", "closed", "fully_paid"].includes(po.status) && !po.is_amendment;
-  const canAmend = (isInstituteAdmin || isFinance || isSuperAdmin) && !po.is_amendment && ["centre_head_approved", "approved", "payment_pending", "partially_paid", "pending_super_admin"].includes(po.status);
+  const canAmend = (isInstituteAdmin || isSuperAdmin) && ["centre_head_approved", "approved", "payment_pending", "partially_paid", "pending_super_admin", "cancelled"].includes(po.status);
   const canReceiveDelivery = (isInstituteAdmin || isSuperAdmin) && ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(po.status);
   const canSendBack = (isFinance || isSuperAdmin) && po.status === "payment_pending";
   const canResubmit = isInstituteAdmin && po.status === "sent_back";
@@ -575,7 +604,7 @@ export default function PODetail() {
           {/* Trigger Events */}
           {milestones.length > 0 && po.status !== "draft" && po.status !== "pending_approval" && (
             <Card className="p-5">
-              <TriggerEventsPanel po={po} milestones={milestones} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin || isSuperAdmin} userName={userName} />
+              <TriggerEventsPanel po={po} milestones={milestones} onEventUpdate={refreshPO} canEdit={isFinance || isInstituteAdmin || isSuperAdmin} userName={userName} isSuperAdmin={isSuperAdmin} />
             </Card>
           )}
 
@@ -628,7 +657,7 @@ export default function PODetail() {
             {canApprove && (
               <div className="space-y-2">
                 <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={approvePO}><CheckCircle className="w-4 h-4 mr-1.5" /> Approve PO (Centre Head)</Button>
-                <Button variant="outline" className="w-full border-amber-200 text-amber-700" onClick={sendBack}><RotateCcw className="w-4 h-4 mr-1.5" /> Send Back for Revision</Button>
+                <Button variant="outline" className="w-full border-amber-200 text-amber-700" onClick={() => setShowCHSendBack(true)}><RotateCcw className="w-4 h-4 mr-1.5" /> Send Back for Revision</Button>
                 {!showReject ? (
                   <Button variant="outline" className="w-full border-red-200 text-red-600" onClick={() => setShowReject(true)}><XCircle className="w-4 h-4 mr-1.5" /> Reject PO</Button>
                 ) : (
@@ -832,6 +861,27 @@ export default function PODetail() {
         </div>
       </div>
 
+      {showCHSendBack && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowCHSendBack(false)}>
+          <div className="bg-white rounded-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center"><RotateCcw className="w-5 h-5 text-amber-600" /></div>
+              <div>
+                <h3 className="font-semibold text-slate-800">Send Back for Revision</h3>
+                <p className="text-xs text-slate-500">PO will be returned to the Institute Admin</p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Reason / Remarks *</Label>
+              <Textarea value={chSendBackReason} onChange={(e) => setChSendBackReason(e.target.value)} rows={4} className="mt-1" placeholder="Clearly state why this PO is being sent back for correction..." />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setShowCHSendBack(false)}>Cancel</Button>
+              <Button className="flex-1 bg-amber-600 hover:bg-amber-700" onClick={sendBack}><RotateCcw className="w-4 h-4 mr-1.5" /> Confirm Send Back</Button>
+            </div>
+          </div>
+        </div>
+      )}
       {showCancel && <CancelPOModal po={po} onClose={() => setShowCancel(false)} onConfirm={cancelPO} />}
       {showAmend && <AmendPOModal po={po} presetItems={amendPreset?.items} presetReason={amendPreset?.reason} presetType={amendPreset?.type} onClose={() => { setShowAmend(false); setAmendPreset(null); }} onConfirm={createAmendment} />}
       {showDelivery && <DeliveryModal po={po} userName={userName} onClose={() => setShowDelivery(false)} onCreated={() => { setShowDelivery(false); refreshPO(); }} />}

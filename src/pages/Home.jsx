@@ -9,7 +9,7 @@ import FinanceHomePanel from "@/components/finance/FinanceHomePanel";
 import { formatINR, formatDate, daysOverdue, PO_CATEGORY_LABELS, PO_TYPE_LABELS } from "@/lib/poUtils";
 import {
   FileText, Clock, CheckCircle, XCircle, Wallet, TrendingUp, AlertTriangle,
-  Building2, PlusCircle, IndianRupee
+  Building2, PlusCircle, IndianRupee, RotateCcw, GitBranch
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -52,6 +52,13 @@ export default function Home() {
     paymentPending: pos.filter((p) => p.status === "payment_pending").length,
     cancelled: pos.filter((p) => p.status === "cancelled").length,
   };
+  // Approval pipeline counts (by level) + status summary
+  const pendingCentreHead = pos.filter((p) => p.status === "pending_centre_head").length;
+  const pendingSuperAdminLevel = pos.filter((p) => p.status === "pending_super_admin").length;
+  const pendingFinanceLevel = pos.filter((p) => p.status === "payment_pending").length;
+  const pendingWithInstituteAdmin = pos.filter((p) => ["sent_back", "centre_head_rejected", "super_admin_rejected"].includes(p.status)).length;
+  const amendedCount = pos.filter((p) => p.is_amendment).length;
+  const approvedLive = pos.filter((p) => ["approved", "payment_pending", "partially_paid", "fully_paid", "closed"].includes(p.status)).length;
 
   const go = (params) => { window.location.href = "/purchase-orders" + (params ? "?" + new URLSearchParams(params).toString() : ""); };
   const goFinance = () => { window.location.href = "/finance"; };
@@ -153,6 +160,21 @@ export default function Home() {
           <StatCard label="Overdue" value={formatINR(overdueAmount)} icon={AlertTriangle} accent="red" onClick={goFinance} />
         </div>
       )}
+
+      {/* Approval Pipeline & PO Status Summary */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 className="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-amber-500" /> Approval Pipeline & PO Status Summary</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <StatCard label="Pending at Centre Head" value={pendingCentreHead} icon={Clock} accent="amber" onClick={() => go({ status: "pending_centre_head" })} />
+          <StatCard label="Pending at Super Admin" value={pendingSuperAdminLevel} icon={Clock} accent="blue" onClick={() => go({ status: "pending_super_admin" })} />
+          <StatCard label="Pending at Finance" value={pendingFinanceLevel} icon={Wallet} accent="purple" onClick={() => go({ status: "payment_pending" })} />
+          <StatCard label="Pending with Institute Admin" value={pendingWithInstituteAdmin} icon={RotateCcw} accent="amber" onClick={() => go({ status: "sent_back" })} />
+          <StatCard label="Approved (live)" value={approvedLive} icon={CheckCircle} accent="emerald" onClick={() => go({ status: "approved" })} />
+          <StatCard label="Amended" value={amendedCount} icon={GitBranch} accent="indigo" onClick={() => { window.location.href = "/po-amendments"; }} />
+          <StatCard label="Cancelled" value={counts.cancelled} icon={XCircle} accent="red" onClick={() => go({ status: "cancelled" })} />
+          <StatCard label="Drafts" value={counts.draft} icon={FileText} accent="slate" onClick={() => go({ status: "draft" })} />
+        </div>
+      </div>
 
       {/* Breakdowns — Super Admin */}
       {isSuperAdmin && (

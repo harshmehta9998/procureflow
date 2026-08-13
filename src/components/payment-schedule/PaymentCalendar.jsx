@@ -37,9 +37,17 @@ export default function PaymentCalendar({ milestones, pos = [], onMilestoneClick
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Format a local Date to YYYY-MM-DD without UTC conversion (avoids off-by-one in non-UTC timezones)
+  const toISODate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
   const getMilestonesForDate = (date) => {
     if (!date) return [];
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = toISODate(date);
     return milestones.filter((m) => {
       if (m.status === "cancelled" || m.status === "paid") return false;
       return m.due_date === dateStr;
@@ -120,7 +128,7 @@ export default function PaymentCalendar({ milestones, pos = [], onMilestoneClick
       {selectedDate && (
         <div className="border border-slate-200 rounded-lg p-4 space-y-2 bg-white">
           <div className="flex items-center justify-between">
-            <h4 className="font-medium text-slate-800 text-sm">{formatDate(selectedDate.toISOString().split("T")[0])}</h4>
+            <h4 className="font-medium text-slate-800 text-sm">{formatDate(toISODate(selectedDate))}</h4>
             <button onClick={() => setSelectedDate(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
           </div>
           {selectedMilestones.length === 0 ? (

@@ -71,7 +71,7 @@ export default function Approvals() {
   };
 
   const rejectPO = async (p, comment) => {
-    await base44.entities.PurchaseOrder.update(p.id, { status: "centre_head_rejected", centre_head_status: "rejected", centre_head_comment: comment });
+    await base44.entities.PurchaseOrder.update(p.id, { status: "centre_head_rejected", centre_head_status: "rejected", centre_head_comment: comment, rejection_reason: comment });
     await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Centre Head Rejected PO", "pending_centre_head", "centre_head_rejected", comment);
     toast.success("PO sent back to Institute Admin");
     fetchData();
@@ -101,7 +101,7 @@ export default function Approvals() {
   };
 
   const rejectPOSuper = async (p, comment) => {
-    await base44.entities.PurchaseOrder.update(p.id, { status: "super_admin_rejected", super_admin_status: "rejected", super_admin_comment: comment });
+    await base44.entities.PurchaseOrder.update(p.id, { status: "super_admin_rejected", super_admin_status: "rejected", super_admin_comment: comment, rejection_reason: comment });
     await logAudit("PurchaseOrder", p.id, p.po_number, userName, "Super Admin Rejected PO", "pending_super_admin", "super_admin_rejected", comment);
     toast.success("PO rejected by Super Admin");
     fetchData();
@@ -235,11 +235,11 @@ function ApprovalSection({ title, items, empty, type, onApprove, onReject, navig
                   <td className="px-4 py-3 text-right font-medium">{formatINR(isPO ? it.grand_total : it.amount)}</td>
                   {!isPO && <td className="px-4 py-3 text-slate-600">{PR_EXPENSE_LABELS[it.expense_category] || "-"}</td>}
                   <td className="px-4 py-3">{isPO ? <StatusBadge status={it.status} /> : <PRBadge status={it.status} />}</td>
-                  <td className="px-4 py-3"><Textarea value={comment[it.id] || ""} onChange={(e) => setComment({ ...comment, [it.id]: e.target.value })} rows={1} className="h-8 text-xs" placeholder="Comment..." /></td>
+                  <td className="px-4 py-3"><Textarea value={comment[it.id] || ""} onChange={(e) => setComment({ ...comment, [it.id]: e.target.value })} rows={1} className="h-8 text-xs" placeholder="Reason (required to reject)" /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
                       <Button size="sm" className="h-7 bg-emerald-600" onClick={() => onApprove(it, comment[it.id] || "")}><CheckCircle className="w-3 h-3 mr-1" /> Approve</Button>
-                      <Button size="sm" variant="outline" className="h-7 border-red-200 text-red-600" onClick={() => onReject(it, comment[it.id] || "")}><XCircle className="w-3 h-3 mr-1" /> Reject</Button>
+                      <Button size="sm" variant="outline" className="h-7 border-red-200 text-red-600" onClick={() => { const r = (comment[it.id] || "").trim(); if (!r) { toast.error("Reason required to reject"); return; } onReject(it, r); }}><XCircle className="w-3 h-3 mr-1" /> Reject</Button>
                     </div>
                   </td>
                 </tr>
