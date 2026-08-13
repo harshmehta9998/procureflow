@@ -147,11 +147,11 @@ export default function RecurringPayments() {
                   <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(r)}>
                     <td className="px-4 py-3 font-medium text-slate-800">{r.recurring_number}</td>
                     {(isSuperAdmin || isCentreHead || isFinance) && <td className="px-4 py-3 text-slate-600">{r.institute_name}</td>}
-                    <td className="px-4 py-3 text-slate-600">{RP_CATEGORY_LABELS[r.payment_category]}</td>
+                    <td className="px-4 py-3 text-slate-600">{r.payment_category || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">{r.payee_vendor_name || "-"}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatINR(r.amount)}</td>
                     <td className="px-4 py-3 text-slate-600">{FREQUENCY_LABELS[r.frequency]}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatDate(r.start_date)} → {formatDate(r.end_date)}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">Day {r.due_day_of_month || "-"} · {FREQUENCY_LABELS[r.frequency]}{r.end_date ? ` · until ${formatDate(r.end_date)}` : " · ongoing"}</td>
                     <td className="px-4 py-3"><RPBadge status={r.status} /></td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       {canAct(r) && <>
@@ -231,20 +231,38 @@ function InstanceRow({ inst, canPay, onPay }) {
 function CreateRecurringModal({ institutes, vendors, userName, instituteId, creatorRole, onClose, onCreated }) {
   const [form, setForm] = useState({
     institute_id: instituteId || "",
-    payment_category: "rent",
+    payment_category: "",
     payee_vendor_id: "",
     amount: 0,
     frequency: "monthly",
     start_date: todayISO(),
     end_date: "",
-    due_day_of_month: 1,
+    ongoing: true,
+    due_day_of_month: 5,
+    num_installments: 12,
     description: "",
     attachment_url: "",
     auto_renewal: false,
   });
   const [saving, setSaving] = useState(false);
 
-  const schedule = useMemo(() => generateInstallmentSchedule(form.start_date, form.end_date, form.frequency, form.due_day_of_month, form.amount), [form.start_date, form.end_date, form.frequency, form.due_day_of_month, form.amount]);
+  // Auto-select the institute when only one is available.
+  useEffect(() => {
+    if (institutes.length === 1 && !form.institute_id) setForm((f) => ({ ...f, institute_id: institutes[0].id }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [institutes]);
+
+  const schedule = useMemo(() => {
+    const stepMonths = form.frequency === "monthly" ? 1 : form.frequency === "quarterly" ? 3 : form.frequency === "half_yearly" ? 6 : 12;
+    let endStr = form.end_date;
+    if (form.ongoing || !form.end_date) {
+      const count = Number(form.num_installments) || 12;
+      const s = new Date(form.start_date || todayISO());
+      const e = new Date(s.getFullYear(), s.getMonth() + stepMonths * count, s.getDate());
+      endStr = e.toISOString().split("T")[0];
+    }
+    return generateInstallmentSchedule(form.start_date, endStr, form.frequency, form.due_day_of_month, form.amount);
+  }, [form.start_date, form.end_date, form.frequency, form.due_day_of_month, form.amount, form.ongoing, form.num_installments]);
 
   const upload = async (e) => {
     const file = e.target.files[0];
@@ -255,7 +273,9 @@ function CreateRecurringModal({ institutes, vendors, userName, instituteId, crea
   const save = async (submit) => {
     if (!form.institute_id) return toast.error("Select institute");
     if (!form.amount || form.amount <= 0) return toast.error("Enter amount");
+    if (!form.payment_category || !form.payment_category.trim()) return toast.error("Enter category");
     if (!form.start_date) return toast.error("Enter start date");
+    if (!form.due_day_of_month) return toast.error("Enter due day of month");
     setSaving(true);
     try {
       const inst = institutes.find((i) => i.id === form.institute_id);
@@ -264,8 +284,10 @@ function CreateRecurringModal({ institutes, vendors, userName, instituteId, crea
       // Finance-created recurring payments require Super Admin confirmation;
       // Super Admin-created ones activate immediately with installments generated.
       let status = submit ? (creatorRole === "super_admin" ? "active" : "pending_super_admin") : "draft";
+      const { ongoing, ...payload } = form;
       const created = await base44.entities.RecurringPayment.create({
-        ...form,
+        ...payload,
+        end_date: ongoing ? "" : form.end_date,
         recurring_number: num,
         institute_name: inst.institute_name,
         institute_code: inst.institute_code,
@@ -304,17 +326,21 @@ function CreateRecurringModal({ institutes, vendors, userName, instituteId, crea
             <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={institutes.length === 1}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{institutes.map((i) => <SelectItem key={i.id} value={i.id}>{i.institute_name}</SelectItem>)}</SelectContent></Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs">Category</Label><Select value={form.payment_category} onValueChange={(v) => setForm({ ...form, payment_category: v })}><SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(RP_CATEGORY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>
-            <div><Label className="text-xs">Payee (optional)</Label><Select value={form.payee_vendor_id} onValueChange={(v) => setForm({ ...form, payee_vendor_id: v })}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="None" /></SelectTrigger><SelectContent><SelectItem value={null}>None</SelectItem>{vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label className="text-xs">Category *</Label><Input list="rp-categories" value={form.payment_category} onChange={(e) => setForm({ ...form, payment_category: e.target.value })} placeholder="e.g. Rent, Salary, EMI" className="h-9 mt-1" /><datalist id="rp-categories">{["Rent","Salary","EMI","Software Subscription","Maintenance","Monthly Service","Internet","Electricity","Housekeeping","Insurance","Telecom"].map((c) => <option key={c} value={c} />)}</datalist></div>
+            <div><Label className="text-xs">Payee (optional)</Label><Select value={form.payee_vendor_id || "none"} onValueChange={(v) => setForm({ ...form, payee_vendor_id: v === "none" ? "" : v })}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="None" /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem>{vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>)}</SelectContent></Select></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs">Amount / Installment *</Label><Input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} className="h-9 mt-1" /></div>
             <div><Label className="text-xs">Frequency</Label><Select value={form.frequency} onValueChange={(v) => setForm({ ...form, frequency: v })}><SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(FREQUENCY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs">Start Date *</Label><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="h-9 mt-1" /></div>
-            <div><Label className="text-xs">End Date</Label><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="h-9 mt-1" /></div>
-            <div><Label className="text-xs">Due Day</Label><Input type="number" min={1} max={28} value={form.due_day_of_month} onChange={(e) => setForm({ ...form, due_day_of_month: Number(e.target.value) })} className="h-9 mt-1" /></div>
+            <div><Label className="text-xs">Due Day of Month *</Label><Input type="number" min={1} max={28} value={form.due_day_of_month} onChange={(e) => setForm({ ...form, due_day_of_month: Number(e.target.value) })} className="h-9 mt-1" /><span className="text-[10px] text-slate-400">e.g. 5 = 5th of every month</span></div>
+          </div>
+          <div className="flex items-end gap-3">
+            <label className="flex items-center gap-2 text-xs text-slate-600 pt-2"><input type="checkbox" checked={form.ongoing} onChange={(e) => setForm({ ...form, ongoing: e.target.checked })} /> Ongoing (no end date)</label>
+            {!form.ongoing && <div className="flex-1"><Label className="text-xs">End Date</Label><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="h-9 mt-1" /></div>}
+            {form.ongoing && <div className="flex-1"><Label className="text-xs"># Installments to generate</Label><Input type="number" min={1} value={form.num_installments} onChange={(e) => setForm({ ...form, num_installments: Number(e.target.value) })} className="h-9 mt-1" /></div>}
           </div>
           <div><Label className="text-xs">Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="mt-1" /></div>
           <div><Label className="text-xs">Supporting Document</Label>

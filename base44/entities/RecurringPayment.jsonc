@@ -20,16 +20,7 @@
     },
     "payment_category": {
       "type": "string",
-      "enum": [
-        "rent",
-        "emi",
-        "software_subscription",
-        "maintenance",
-        "monthly_service",
-        "other"
-      ],
-      "default": "other",
-      "title": "Payment Category"
+      "title": "Category"
     },
     "payee_vendor_id": {
       "type": "string",

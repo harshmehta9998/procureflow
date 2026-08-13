@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, AlertTriangle, Clock, CheckCircle, TrendingDown, Calendar, Filter, IndianRupee, Bell } from "lucide-react";
+import { Wallet, AlertTriangle, Clock, CheckCircle, TrendingDown, Calendar, Filter, IndianRupee, Bell, CalendarClock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function Finance() {
@@ -21,6 +21,7 @@ export default function Finance() {
   const [payments, setPayments] = useState([]);
   const [institutes, setInstitutes] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [recurringInstances, setRecurringInstances] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -30,18 +31,20 @@ export default function Finance() {
   useEffect(() => {
     (async () => {
       try {
-        const [allMs, allPOs, allPays, allInsts, allVens] = await Promise.all([
+        const [allMs, allPOs, allPays, allInsts, allVens, allRpi] = await Promise.all([
           base44.entities.PaymentMilestone.list("-created_date", 1000),
           base44.entities.PurchaseOrder.list("-created_date", 500),
           base44.entities.Payment.list("-payment_date", 500),
           base44.entities.Institute.list(),
           base44.entities.Vendor.list(),
+          base44.entities.RecurringPaymentInstance.list("-due_date", 2000),
         ]);
         setMilestones(allMs.filter((m) => !m.deleted));
         setPos(allPOs.filter((p) => !p.deleted));
         setPayments(allPays);
         setInstitutes(allInsts);
         setVendors(allVens);
+        setRecurringInstances(allRpi.filter((i) => !i.deleted && i.status !== "cancelled"));
       } finally {
         setLoading(false);
       }
@@ -103,6 +106,22 @@ export default function Finance() {
   const totalLiability = filteredMilestones.reduce((s, m) => s + (m.outstanding_amount || 0), 0);
   const totalReleased = filteredMilestones.reduce((s, m) => s + (m.amount_paid || 0), 0);
   const overdueAmount = overdue.reduce((s, m) => s + (m.outstanding_amount || 0), 0);
+
+  // Recurring payments liability (active recurring installments, unpaid)
+  const recurringDue = recurringInstances.filter((i) => i.status !== "paid" && (scopeInstituteIds === null || scopeInstituteIds.includes(i.institute_id)));
+  const recurringOutstanding = recurringDue.reduce((s, i) => s + (i.outstanding_amount || (i.amount - (i.amount_paid || 0)) || 0), 0);
+  const recurringByInstitute = (() => {
+    const map = {};
+    recurringDue.forEach((i) => {
+      const key = i.institute_id || "_none";
+      if (!map[key]) map[key] = { institute_name: i.institute_name || "—", outstanding: 0, count: 0, overdue: 0 };
+      const out = i.outstanding_amount || (i.amount - (i.amount_paid || 0)) || 0;
+      map[key].outstanding += out;
+      map[key].count += 1;
+      if (i.due_date && i.due_date < todayISO()) map[key].overdue += out;
+    });
+    return Object.values(map).sort((a, b) => b.outstanding - a.outstanding);
+  })();
 
   // Reminders
   const dueIn2Days = filteredMilestones.filter((m) => {
@@ -170,6 +189,44 @@ export default function Finance() {
         <StatCard label="Upcoming" value={upcoming.length} sub={formatINR(upcoming.reduce((s, m) => s + (m.outstanding_amount || 0), 0))} icon={Calendar} accent="blue" />
         <StatCard label="Partial Payments" value={partial.length} sub={formatINR(partial.reduce((s, m) => s + (m.outstanding_amount || 0), 0))} icon={Wallet} accent="indigo" />
         <StatCard label="Paid Milestones" value={filteredMilestones.filter((m) => m.status === "paid").length} sub={formatINR(filteredMilestones.filter((m) => m.status === "paid").reduce((s, m) => s + (m.amount_paid || 0), 0))} icon={CheckCircle} accent="emerald" />
+      </div>
+
+      {/* Recurring Payments Liability */}
+      <div className="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-indigo-100 bg-indigo-50/30 flex items-center justify-between">
+          <h3 className="font-semibold text-indigo-700 text-sm flex items-center gap-2"><CalendarClock className="w-4 h-4" /> Recurring Payments Liability</h3>
+          <div className="text-right">
+            <div className="text-[10px] text-indigo-500 uppercase tracking-wide font-medium">Total Outstanding</div>
+            <div className="text-lg font-bold text-indigo-700">{formatINR(recurringOutstanding)}</div>
+            <div className="text-[11px] text-indigo-400">{recurringDue.length} unpaid installments</div>
+          </div>
+        </div>
+        {recurringByInstitute.length === 0 ? (
+          <div className="text-center py-8 text-sm text-slate-400">No active recurring payments</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                  <th className="text-left px-5 py-2.5 font-medium">Institute</th>
+                  <th className="text-right px-5 py-2.5 font-medium">Unpaid Installments</th>
+                  <th className="text-right px-5 py-2.5 font-medium">Overdue Amount</th>
+                  <th className="text-right px-5 py-2.5 font-medium">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recurringByInstitute.map((r) => (
+                  <tr key={r.institute_name} className="hover:bg-slate-50">
+                    <td className="px-5 py-3 font-medium text-slate-800">{r.institute_name}</td>
+                    <td className="px-5 py-3 text-right text-slate-600">{r.count}</td>
+                    <td className="px-5 py-3 text-right text-red-600">{formatINR(r.overdue)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-indigo-600">{formatINR(r.outstanding)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
