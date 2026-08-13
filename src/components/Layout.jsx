@@ -7,7 +7,7 @@ import {
   LayoutDashboard, FileText, PlusCircle, Users as UsersIcon, Wallet, BarChart3,
   Building2, ClipboardList, LogOut, Search, Menu, X, ChevronDown,
   GitBranch, PackageCheck, Zap, CalendarClock, History, RefreshCw,
-  ShieldCheck, UserCog, Receipt, Layers, UserCircle
+  ShieldCheck, UserCog, Receipt, Layers, UserCircle, Eye
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -74,12 +74,21 @@ export default function Layout() {
   const {
     role, userName, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead,
     instituteName, showInstitutionSelector, accessibleInstitutes, activeInstitute,
-    setActiveInstitute,
+    setActiveInstitute, previewRole, setPreviewRole, realIsSuperAdmin,
   } = useUserRole();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [instOpen, setInstOpen] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
+
+  const PREVIEW_ROLES = [
+    { value: null, label: "Super Admin (actual)" },
+    { value: "admin", label: "Institute Admin" },
+    { value: "centre_head", label: "Centre Head" },
+    { value: "finance", label: "Finance" },
+  ];
+  const previewLabel = PREVIEW_ROLES.find((r) => r.value === previewRole)?.label || "Super Admin (actual)";
 
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
@@ -163,6 +172,35 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {realIsSuperAdmin && (
+              <div className="relative">
+                <button
+                  onClick={() => setRoleOpen(!roleOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-sm font-medium text-amber-700 hover:bg-amber-100"
+                  title="Preview the app as another role (Super Admin only). Backend permissions stay real."
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Test as: {previewLabel}
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {roleOpen && (
+                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-amber-600 font-semibold">Test as Role (Preview)</div>
+                    {PREVIEW_ROLES.map((r) => (
+                      <button
+                        key={String(r.value)}
+                        onClick={() => { setPreviewRole(r.value); setRoleOpen(false); navigate("/"); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${previewRole === r.value ? "text-slate-900 font-semibold bg-slate-50" : "text-slate-600"}`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                    <div className="border-t border-slate-100 my-1" />
+                    <div className="px-3 py-1.5 text-[10px] text-slate-400">Permissions stay as your real Super Admin account — use this to walk the UI flow, not to test access limits.</div>
+                  </div>
+                )}
+              </div>
+            )}
             {showInstitutionSelector && (
               <div className="relative">
                 <button

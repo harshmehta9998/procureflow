@@ -12,6 +12,7 @@ export const RoleProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [accountInactive, setAccountInactive] = useState(false);
   const [activeInstitute, setActiveInstituteState] = useState("all");
+  const [previewRole, setPreviewRoleState] = useState(null); // Super-Admin-only "Test as Role" override
 
   // Load authenticated user + the institutes they may access (RLS returns only
   // mapped institutes for non-admins, all for platform admins/super_admins).
@@ -52,6 +53,10 @@ export const RoleProvider = ({ children }) => {
           initial = myInstIds[0];
         }
         setActiveInstituteState(initial);
+        // Restore any saved "Test as Role" preview (only meaningful for super admin).
+        let savedPreview = null;
+        try { savedPreview = localStorage.getItem(`pf_preview_role_${u.id}`); } catch {}
+        if (savedPreview && u?.role === "admin") setPreviewRoleState(savedPreview);
       } catch (e) {
         setUser(null);
       } finally {
@@ -65,16 +70,30 @@ export const RoleProvider = ({ children }) => {
     try { localStorage.setItem(STORAGE_KEY(user?.id), val); } catch {}
   };
 
-  const role = user?.app_role || (user?.role === "admin" ? "super_admin" : null);
-  const isSuperAdmin = role === "super_admin";
+  // "Test as Role" — lets the platform admin (Super Admin) preview the UI/flow of
+  // another role WITHOUT changing backend permissions. RLS still enforces the real
+  // user's access; this only changes which nav items/buttons the frontend shows.
+  const setPreviewRole = (val) => {
+    setPreviewRoleState(val);
+    try {
+      if (val) localStorage.setItem(`pf_preview_role_${user?.id}`, val);
+      else localStorage.removeItem(`pf_preview_role_${user?.id}`);
+    } catch {}
+  };
+
+  const realRole = user?.app_role || (user?.role === "admin" ? "super_admin" : null);
+  const realIsSuperAdmin = realRole === "super_admin";
+  // previewRole only applies when the real account is Super Admin.
+  const role = (realIsSuperAdmin && previewRole) ? previewRole : realRole;
+  const isSuperAdmin = realIsSuperAdmin && !previewRole;
   const isCentreHead = role === "centre_head";
   const isFinance = role === "finance";
   const isInstituteAdmin = role === "admin";
 
   const myInstIds = user?.institute_ids || (user?.institute_id ? [user.institute_id] : []);
-  // Institutes available in the selector: super admin sees every institute; others
-  // see only their mapped ones (already enforced by RLS on Institute reads).
-  const accessibleInstitutes = isSuperAdmin
+  // Institutes available in the selector follow the REAL account (Super Admin sees
+  // every institute); the "Test as Role" preview only changes UI flags, not data scope.
+  const accessibleInstitutes = realIsSuperAdmin
     ? institutes
     : institutes.filter((i) => myInstIds.includes(i.id));
   const instituteIds = accessibleInstitutes.map((i) => i.id);
@@ -85,7 +104,7 @@ export const RoleProvider = ({ children }) => {
   //   [...] -> restrict to these institute IDs
   let scopeInstituteIds = null;
   if (activeInstitute === "all") {
-    scopeInstituteIds = isSuperAdmin ? null : (myInstIds.length ? myInstIds : []);
+    scopeInstituteIds = realIsSuperAdmin ? null : (myInstIds.length ? myInstIds : []);
   } else {
     scopeInstituteIds = [activeInstitute];
   }
@@ -117,12 +136,17 @@ export const RoleProvider = ({ children }) => {
     isCentreHead,
     isFinance,
     isInstituteAdmin,
-    hasMultipleInstitutes: instituteIds.length > 1 || isSuperAdmin,
-    showInstitutionSelector: isSuperAdmin || myInstIds.length > 1,
+    hasMultipleInstitutes: instituteIds.length > 1 || realIsSuperAdmin,
+    showInstitutionSelector: realIsSuperAdmin || myInstIds.length > 1,
+    // "Test as Role" preview (Super Admin only)
+    previewRole,
+    setPreviewRole,
+    realRole,
+    realIsSuperAdmin,
     // permission helpers
     managesInstitute: (instId) => {
       if (!instId) return false;
-      if (isSuperAdmin) return true;
+      if (realIsSuperAdmin) return true;
       return myInstIds.includes(instId);
     },
     inScope: (instId) => {
