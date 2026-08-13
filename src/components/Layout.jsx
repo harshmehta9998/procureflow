@@ -4,10 +4,10 @@ import { useUserRole } from "@/lib/RoleContext";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, FileText, PlusCircle, Users, Wallet, BarChart3,
+  LayoutDashboard, FileText, PlusCircle, Users as UsersIcon, Wallet, BarChart3,
   Building2, ClipboardList, LogOut, Search, Menu, X, ChevronDown,
   GitBranch, PackageCheck, Zap, CalendarClock, History, RefreshCw,
-  ShieldCheck, UserCog, Receipt, Layers
+  ShieldCheck, UserCog, Receipt, Layers, UserCircle
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -34,7 +34,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Finance Dashboard", path: "/finance", icon: Wallet, roles: ["finance", "super_admin", "centre_head"] },
       { label: "Institution-wise Finance", path: "/institutions", icon: Building2, roles: ["super_admin", "finance", "centre_head"] },
-      { label: "Vendor-wise Finance", path: "/vendors", icon: Users, roles: ["super_admin", "finance", "centre_head"] },
+      { label: "Vendor-wise Finance", path: "/vendors", icon: UsersIcon, roles: ["super_admin", "finance", "centre_head"] },
       { label: "Refunds & Credits", path: "/refunds-credits", icon: RefreshCw, roles: ["super_admin", "finance"] },
     ],
   },
@@ -51,8 +51,8 @@ const NAV_GROUPS = [
     items: [
       { label: "Institutions", path: "/institutes", icon: Building2, roles: ["super_admin", "centre_head"] },
       { label: "Centre Heads", path: "/centre-heads", icon: UserCog, roles: ["super_admin"] },
-      { label: "Vendors", path: "/vendors", icon: Users, roles: ["admin", "super_admin", "finance", "centre_head"] },
-      { label: "Users", path: "/user-management", icon: Users, roles: ["super_admin"] },
+      { label: "Vendors", path: "/vendors", icon: UsersIcon, roles: ["admin", "super_admin", "finance", "centre_head"] },
+      { label: "Users", path: "/user-management", icon: UsersIcon, roles: ["super_admin"] },
     ],
   },
   {
@@ -71,7 +71,11 @@ const matchesPath = (pathname, itemPath) => {
 };
 
 export default function Layout() {
-  const { role, userName, setDemoRole, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead, instituteName, instituteIds, instituteNames, hasMultipleInstitutes, activeInstituteId, setActiveInstituteId } = useUserRole();
+  const {
+    role, userName, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead,
+    instituteName, showInstitutionSelector, accessibleInstitutes, activeInstitute,
+    setActiveInstitute,
+  } = useUserRole();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -83,10 +87,13 @@ export default function Layout() {
   })).filter((g) => g.items.length > 0);
 
   const handleLogout = async () => {
-    await base44.auth.logout("/login");
+    await base44.auth.logout(window.location.origin);
   };
 
   const roleBadge = isSuperAdmin ? "Super Admin" : isCentreHead ? "Centre Head" : isFinance ? "Finance" : "Institute Admin";
+  const activeInstName = activeInstitute === "all"
+    ? "All Institutions"
+    : (accessibleInstitutes.find((i) => i.id === activeInstitute)?.institute_name || "All Institutions");
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -125,10 +132,12 @@ export default function Layout() {
           ))}
         </nav>
         <div className="p-3 border-t border-slate-200">
-          <div className="px-3 py-2 mb-2">
-            <div className="text-xs font-medium text-slate-700 truncate">{userName}</div>
-            <div className="text-[10px] text-slate-400">{roleBadge}{instituteName ? ` · ${instituteName}` : ""}</div>
-          </div>
+          <Link to="/profile" className="block px-3 py-2 mb-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <div className="text-xs font-medium text-slate-700 truncate flex items-center gap-1.5">
+              <UserCircle className="w-3.5 h-3.5 text-slate-400" /> {userName}
+            </div>
+            <div className="text-[10px] text-slate-400">{roleBadge}{instituteName ? ` · ${instituteName}` : (activeInstitute === "all" ? " · All Institutions" : "")}</div>
+          </Link>
           <Button variant="ghost" size="sm" className="w-full justify-start text-slate-500" onClick={handleLogout}>
             <LogOut className="w-4 h-4 mr-2" /> Logout
           </Button>
@@ -154,34 +163,41 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {hasMultipleInstitutes && (
+            {showInstitutionSelector && (
               <div className="relative">
                 <button
                   onClick={() => setInstOpen(!instOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50"
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  {instituteNames[instituteIds.indexOf(activeInstituteId)] || "Select Institute"}
+                  {activeInstName}
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
                 {instOpen && (
-                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
-                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Active Institute</div>
-                    {instituteIds.map((id, i) => (
+                  <div className="absolute right-0 mt-1 w-60 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Active Institution</div>
+                    <button
+                      onClick={() => { setActiveInstitute("all"); setInstOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 ${activeInstitute === "all" ? "text-slate-900 font-semibold bg-slate-50" : "text-slate-600"}`}
+                    >
+                      <Layers className="w-3.5 h-3.5 text-slate-400" />
+                      All Institutions
+                    </button>
+                    <div className="border-t border-slate-100 my-1" />
+                    {accessibleInstitutes.map((inst) => (
                       <button
-                        key={id}
-                        onClick={() => { setActiveInstituteId(id); setInstOpen(false); }}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 ${activeInstituteId === id ? "text-slate-900 font-semibold" : "text-slate-600"}`}
+                        key={inst.id}
+                        onClick={() => { setActiveInstitute(inst.id); setInstOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 ${activeInstitute === inst.id ? "text-slate-900 font-semibold bg-slate-50" : "text-slate-600"}`}
                       >
                         <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        {instituteNames[i] || id}
+                        {inst.institute_name}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
             )}
-            <RoleSwitcher demoRole={role} setDemoRole={setDemoRole} />
           </div>
         </header>
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
@@ -191,40 +207,3 @@ export default function Layout() {
     </div>
   );
 }
-
-const RoleSwitcher = ({ demoRole, setDemoRole }) => {
-  const [open, setOpen] = useState(false);
-  const roles = [
-    { value: "admin", label: "Institute Admin" },
-    { value: "centre_head", label: "Centre Head" },
-    { value: "finance", label: "Finance" },
-    { value: "super_admin", label: "Super Admin" },
-  ];
-  const current = roles.find((r) => r.value === demoRole);
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50"
-      >
-        <div className="w-2 h-2 rounded-full bg-emerald-500" />
-        {current?.label}
-        <ChevronDown className="w-3.5 h-3.5" />
-      </button>
-      {open && (
-        <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
-          <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Demo Role Switch</div>
-          {roles.map((r) => (
-            <button
-              key={r.value}
-              onClick={() => { setDemoRole(r.value); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${demoRole === r.value ? "text-slate-900 font-semibold" : "text-slate-600"}`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};

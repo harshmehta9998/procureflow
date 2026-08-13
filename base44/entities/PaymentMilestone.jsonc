@@ -149,5 +149,63 @@
     "po_id",
     "milestone_name",
     "trigger_type"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
 }

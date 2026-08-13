@@ -29,7 +29,7 @@ export default function CentreHeads() {
   const fetchData = async () => {
     try {
       const [allUsers, allInsts] = await Promise.all([base44.entities.User.list(), base44.entities.Institute.list()]);
-      setUsers(allUsers.filter((u) => u.role === "centre_head" || u.role === "admin"));
+      setUsers(allUsers.filter((u) => u.app_role === "centre_head" || u.app_role === "admin"));
       setInstitutes(allInsts);
     } finally { setLoading(false); }
   };
@@ -43,7 +43,8 @@ export default function CentreHeads() {
       const instNames = institutes.filter((i) => editInst.includes(i.id)).map((i) => i.institute_name);
       const u = users.find((x) => x.id === userId);
       await base44.entities.User.update(userId, {
-        role: "centre_head",
+        app_role: "centre_head",
+        role: "user",
         institute_ids: editInst,
         institute_names: instNames,
         institute_id: editInst[0],
@@ -64,12 +65,14 @@ export default function CentreHeads() {
     if (inviteInst.length === 0) return toast.error("Assign at least one institute");
     setInviting(true);
     try {
-      await base44.users.inviteUser(inviteEmail, "centre_head");
+      await base44.users.inviteUser(inviteEmail, "user");
       const allUsers = await base44.entities.User.list();
       const newUser = allUsers.find((u) => u.email === inviteEmail);
       if (newUser) {
         const instNames = institutes.filter((i) => inviteInst.includes(i.id)).map((i) => i.institute_name);
         await base44.entities.User.update(newUser.id, {
+          app_role: "centre_head",
+          role: "user",
           institute_ids: inviteInst, institute_names: instNames, institute_id: inviteInst[0], institute_name: instNames[0],
         });
         for (const instId of inviteInst) {
@@ -133,7 +136,7 @@ export default function CentreHeads() {
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-200"><h3 className="font-semibold text-slate-800 text-sm">Centre Heads ({users.filter((u) => u.role === "centre_head").length})</h3></div>
+        <div className="px-5 py-3.5 border-b border-slate-200"><h3 className="font-semibold text-slate-800 text-sm">Centre Heads ({users.filter((u) => u.app_role === "centre_head").length})</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase"><tr><th className="text-left px-5 py-2.5 font-medium">User</th><th className="text-left px-5 py-2.5 font-medium">Role</th><th className="text-left px-5 py-2.5 font-medium">Assigned Institutes</th><th className="text-right px-5 py-2.5 font-medium">Action</th></tr></thead>
@@ -145,7 +148,7 @@ export default function CentreHeads() {
                 return (
                   <tr key={u.id} className="hover:bg-slate-50">
                     <td className="px-5 py-3"><div className="font-medium text-slate-800">{u.full_name || u.email}</div>{u.full_name && <div className="text-xs text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {u.email}</div>}</td>
-                    <td className="px-5 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${ROLE_BADGE[u.role] || ROLE_BADGE.admin}`}>{u.role === "centre_head" ? "Centre Head" : "Institute Admin"}</span></td>
+                    <td className="px-5 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${ROLE_BADGE[u.app_role] || ROLE_BADGE.admin}`}>{u.app_role === "centre_head" ? "Centre Head" : "Institute Admin"}</span></td>
                     <td className="px-5 py-3">
                       {isEditing ? (
                         <div className="flex flex-wrap gap-1.5 max-w-md">

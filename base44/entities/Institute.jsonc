@@ -35,5 +35,36 @@
   "required": [
     "institute_name",
     "institute_code"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

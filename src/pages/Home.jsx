@@ -17,27 +17,26 @@ import {
 } from "recharts";
 
 export default function Home() {
-  const { role, instituteId, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead, instituteIds, userName } = useUserRole();
+  const { role, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead, scopeInstituteIds, activeInstitute, instituteName, userName } = useUserRole();
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
+        // RLS already restricts to the user's mapped institutions server-side; we
+        // further narrow by the active institution selector ("All" vs a specific one).
         let list = await base44.entities.PurchaseOrder.list("-created_date", 500);
         list = list.filter((p) => !p.deleted);
-        if (isInstituteAdmin && instituteId) {
-          list = list.filter((p) => p.institute_id === instituteId);
-        }
-        if (isCentreHead && instituteIds && instituteIds.length > 0) {
-          list = list.filter((p) => instituteIds.includes(p.institute_id));
+        if (scopeInstituteIds !== null) {
+          list = list.filter((p) => scopeInstituteIds.includes(p.institute_id));
         }
         setPos(list);
       } finally {
         setLoading(false);
       }
     })();
-  }, [role, instituteId, isInstituteAdmin, isCentreHead, instituteIds]);
+  }, [role, scopeInstituteIds, activeInstitute]);
 
   const counts = {
     total: pos.length,
@@ -107,7 +106,7 @@ export default function Home() {
             {isSuperAdmin ? "Super Admin Dashboard" : isCentreHead ? "Centre Head Dashboard" : isFinance ? "Finance Dashboard" : "Institute Dashboard"}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Welcome back, {userName}. {isInstituteAdmin ? "Here's your institute overview." : isCentreHead ? "Here's your group overview." : "Here's the system overview."}
+            Welcome back, {userName}. {instituteName ? `Viewing ${instituteName}.` : activeInstitute === "all" ? "Viewing all accessible institutions." : "Here's your overview."}
           </p>
         </div>
         {isInstituteAdmin && (

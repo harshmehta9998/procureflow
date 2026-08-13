@@ -12,7 +12,7 @@ import { PackageCheck, Plus, Upload, X, CheckCircle, AlertTriangle } from "lucid
 import { toast } from "sonner";
 
 export default function DeliveryVerification() {
-  const { role, instituteId, instituteIds, userName, isInstituteAdmin, isSuperAdmin, isCentreHead } = useUserRole();
+  const { role, instituteId, scopeInstituteIds, activeInstitute, userName, isInstituteAdmin, isSuperAdmin, isCentreHead } = useUserRole();
   const [verifications, setVerifications] = useState([]);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,17 +32,15 @@ export default function DeliveryVerification() {
   useEffect(() => { fetchData(); }, []);
 
   const visible = useMemo(() => verifications.filter((v) => {
-    if (isInstituteAdmin && instituteId && v.institute_id !== instituteId) return false;
-    if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(v.institute_id)) return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(v.institute_id)) return false;
     return true;
-  }), [verifications, isInstituteAdmin, instituteId, isCentreHead, instituteIds]);
+  }), [verifications, scopeInstituteIds]);
 
   // POs eligible for delivery verification (approved + has items, for this institute)
   const eligiblePos = useMemo(() => pos.filter((p) => {
-    if (isInstituteAdmin && instituteId && p.institute_id !== instituteId) return false;
-    if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(p.institute_id)) return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return false;
     return ["centre_head_approved", "approved", "payment_pending", "partially_paid"].includes(p.status);
-  }), [pos, isInstituteAdmin, instituteId, isCentreHead, instituteIds]);
+  }), [pos, scopeInstituteIds]);
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
 

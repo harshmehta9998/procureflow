@@ -88,5 +88,54 @@
     "from_po_id",
     "settlement_type",
     "amount"
-  ]
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.institute_id": {
+            "$in": "{{user.data.institute_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

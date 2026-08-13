@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function PurchaseOrders() {
-  const { role, instituteId, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, instituteIds } = useUserRole();
+  const { role, scopeInstituteIds, activeInstitute, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead } = useUserRole();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [pos, setPos] = useState([]);
@@ -50,8 +50,8 @@ export default function PurchaseOrders() {
 
   const filtered = useMemo(() => {
     return pos.filter((p) => {
-      if (isInstituteAdmin && instituteId && p.institute_id !== instituteId) return false;
-      if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(p.institute_id)) return false;
+      // Narrow to the active institution selector (RLS already restricts to mapped institutes server-side).
+      if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return false;
       if (isFinance && !FINANCE_VISIBLE_STATUSES.includes(p.status)) return false;
       const f = filters;
       if (f.q) {
@@ -69,7 +69,7 @@ export default function PurchaseOrders() {
       if (f.dateTo && p.created_date && new Date(p.created_date) > new Date(f.dateTo)) return false;
       return true;
     });
-  }, [pos, filters, isInstituteAdmin, instituteId, isFinance]);
+  }, [pos, filters, scopeInstituteIds, isFinance]);
 
   const totalValue = filtered.reduce((s, p) => s + (p.grand_total || 0), 0);
   const activeFilters = Object.entries(filters).filter(([, v]) => v).length;

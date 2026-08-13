@@ -6,7 +6,7 @@ import { formatINR } from "@/lib/poUtils";
 import { Building2, ChevronRight } from "lucide-react";
 
 export default function InstitutionFinance() {
-  const { isSuperAdmin, isFinance, isCentreHead, instituteIds } = useUserRole();
+  const { accessibleInstitutes, scopeInstituteIds, activeInstitute } = useUserRole();
   const [institutes, setInstitutes] = useState([]);
   const [pos, setPos] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -31,10 +31,10 @@ export default function InstitutionFinance() {
   }, []);
 
   const visibleInsts = useMemo(() => {
-    if (isSuperAdmin || isFinance) return institutes;
-    if (isCentreHead && instituteIds) return institutes.filter((i) => instituteIds.includes(i.id));
-    return [];
-  }, [institutes, isSuperAdmin, isFinance, isCentreHead, instituteIds]);
+    let list = accessibleInstitutes;
+    if (scopeInstituteIds !== null) list = list.filter((i) => scopeInstituteIds.includes(i.id));
+    return list;
+  }, [accessibleInstitutes, scopeInstituteIds]);
 
   const summary = useMemo(() => visibleInsts.map((inst) => {
     const instPos = pos.filter((p) => p.institute_id === inst.id && !p.cancelled);

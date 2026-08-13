@@ -7,7 +7,7 @@ import { FileDown, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function Reports() {
-  const { isInstituteAdmin, instituteId, isSuperAdmin } = useUserRole();
+  const { scopeInstituteIds, activeInstitute, isSuperAdmin } = useUserRole();
   const [pos, setPos] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,12 +17,16 @@ export default function Reports() {
       try {
         const [p, pays] = await Promise.all([base44.entities.PurchaseOrder.list("-created_date", 500), base44.entities.Payment.list("-payment_date", 500)]);
         let list = p.filter((x) => !x.deleted);
-        if (isInstituteAdmin && instituteId) list = list.filter((x) => x.institute_id === instituteId);
+        let payList = pays;
+        if (scopeInstituteIds !== null) {
+          list = list.filter((x) => scopeInstituteIds.includes(x.institute_id));
+          payList = payList.filter((x) => scopeInstituteIds.includes(x.institute_id));
+        }
         setPos(list);
-        setPayments(pays);
+        setPayments(payList);
       } finally { setLoading(false); }
     })();
-  }, [instituteId, isInstituteAdmin]);
+  }, [scopeInstituteIds, activeInstitute]);
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
 

@@ -2,29 +2,56 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 
 const RoleContext = createContext(null);
-
 export const useUserRole = () => useContext(RoleContext);
+
+const STORAGE_KEY = (uid) => `pf_active_institute_${uid || "anon"}`;
 
 export const RoleProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [demoRole, setDemoRoleState] = useState(() => {
-    try { return localStorage.getItem("pf_demo_role") || null; } catch { return null; }
-  });
-  const [activeInstituteId, setActiveInstituteId] = useState(null);
+  const [accountInactive, setAccountInactive] = useState(false);
+  const [activeInstitute, setActiveInstituteState] = useState("all");
 
-  const setDemoRole = (r) => {
-    setDemoRoleState(r);
-    try { if (r) localStorage.setItem("pf_demo_role", r); else localStorage.removeItem("pf_demo_role"); } catch {}
-  };
-
+  // Load authenticated user + the institutes they may access (RLS returns only
+  // mapped institutes for non-admins, all for platform admins/super_admins).
   useEffect(() => {
     (async () => {
       try {
         const u = await base44.auth.me();
         setUser(u);
-        const ids = u?.institute_ids || (u?.institute_id ? [u.institute_id] : []);
-        if (ids.length > 0) setActiveInstituteId(ids[0]);
+        // Deactivated accounts cannot use the app — enforce immediately after auth.
+        if (u?.account_status === "inactive") {
+          setAccountInactive(true);
+          setLoading(false);
+          return;
+        }
+        // Resolve the application role from app_role. Bootstrap: a platform admin
+        // (role "admin") created before app_role existed is treated as Super Admin
+        // and we persist app_role so future loads are deterministic.
+        let appRole = u?.app_role || null;
+        if (!appRole && u?.role === "admin") {
+          appRole = "super_admin";
+          try { await base44.auth.updateMe({ app_role: "super_admin" }); } catch {}
+        }
+        const isSuperAdmin = appRole === "super_admin";
+        const insts = await base44.entities.Institute.list();
+        setInstitutes(insts);
+
+        const myInstIds = u?.institute_ids || (u?.institute_id ? [u.institute_id] : []);
+        let initial;
+        try {
+          initial = localStorage.getItem(STORAGE_KEY(u.id)) || "all";
+        } catch { initial = "all"; }
+        // Validate the persisted selection is still accessible to the user.
+        if (initial !== "all" && !isSuperAdmin && !myInstIds.includes(initial)) {
+          initial = "all";
+        }
+        // If the user has exactly one institute and is not super admin, default to it.
+        if (initial === "all" && !isSuperAdmin && myInstIds.length === 1) {
+          initial = myInstIds[0];
+        }
+        setActiveInstituteState(initial);
       } catch (e) {
         setUser(null);
       } finally {
@@ -33,41 +60,99 @@ export const RoleProvider = ({ children }) => {
     })();
   }, []);
 
-  const effectiveRole = demoRole || user?.role || "super_admin";
-  const instituteIds = user?.institute_ids || (user?.institute_id ? [user.institute_id] : []);
-  const instituteNames = user?.institute_names || (user?.institute_name ? [user.institute_name] : []);
-  const instituteId = effectiveRole === "super_admin" ? null : (activeInstituteId || instituteIds[0] || user?.institute_id || null);
-  const instituteName = effectiveRole === "super_admin" ? null : (
-    instituteIds.indexOf(instituteId) >= 0 ? (instituteNames[instituteIds.indexOf(instituteId)] || user?.institute_name) : user?.institute_name
-  );
+  const setActiveInstitute = (val) => {
+    setActiveInstituteState(val);
+    try { localStorage.setItem(STORAGE_KEY(user?.id), val); } catch {}
+  };
+
+  const role = user?.app_role || (user?.role === "admin" ? "super_admin" : null);
+  const isSuperAdmin = role === "super_admin";
+  const isCentreHead = role === "centre_head";
+  const isFinance = role === "finance";
+  const isInstituteAdmin = role === "admin";
+
+  const myInstIds = user?.institute_ids || (user?.institute_id ? [user.institute_id] : []);
+  // Institutes available in the selector: super admin sees every institute; others
+  // see only their mapped ones (already enforced by RLS on Institute reads).
+  const accessibleInstitutes = isSuperAdmin
+    ? institutes
+    : institutes.filter((i) => myInstIds.includes(i.id));
+  const instituteIds = accessibleInstitutes.map((i) => i.id);
+  const instituteNames = accessibleInstitutes.map((i) => i.institute_name);
+
+  // scopeInstituteIds: the set of institute IDs the current view should show data for.
+  //   null  -> no filter (super admin viewing All Institutions = entire system)
+  //   [...] -> restrict to these institute IDs
+  let scopeInstituteIds = null;
+  if (activeInstitute === "all") {
+    scopeInstituteIds = isSuperAdmin ? null : (myInstIds.length ? myInstIds : []);
+  } else {
+    scopeInstituteIds = [activeInstitute];
+  }
+
+  const instituteId = activeInstitute === "all" ? (myInstIds[0] || null) : activeInstitute;
+  const instituteName = activeInstitute === "all"
+    ? null
+    : (accessibleInstitutes.find((i) => i.id === activeInstitute)?.institute_name || null);
+
   const userName = user?.full_name || user?.email || "User";
 
   const value = {
     user,
-    role: effectiveRole,
-    instituteId,
-    instituteName,
-    instituteIds,
-    instituteNames,
-    activeInstituteId,
-    setActiveInstituteId,
+    role,
     userName,
     loading,
-    setDemoRole,
-    isSuperAdmin: effectiveRole === "super_admin",
-    isCentreHead: effectiveRole === "centre_head",
-    isFinance: effectiveRole === "finance",
-    isInstituteAdmin: effectiveRole === "admin",
-    // Centre heads manage multiple institutes; finance/super_admin see all
+    accountInactive,
+    // institution selector
+    activeInstitute,
+    setActiveInstitute,
+    scopeInstituteIds,
+    accessibleInstitutes,
+    instituteIds,
+    instituteNames,
+    instituteId,
+    instituteName,
+    // role flags
+    isSuperAdmin,
+    isCentreHead,
+    isFinance,
+    isInstituteAdmin,
+    hasMultipleInstitutes: instituteIds.length > 1 || isSuperAdmin,
+    showInstitutionSelector: isSuperAdmin || myInstIds.length > 1,
+    // permission helpers
     managesInstitute: (instId) => {
-      if (effectiveRole === "super_admin") return true;
       if (!instId) return false;
-      if (effectiveRole === "centre_head") return instituteIds.includes(instId);
-      if (effectiveRole === "admin") return instituteIds.includes(instId);
-      return false;
+      if (isSuperAdmin) return true;
+      return myInstIds.includes(instId);
     },
-    hasMultipleInstitutes: instituteIds.length > 1,
+    inScope: (instId) => {
+      if (scopeInstituteIds === null) return true;
+      return scopeInstituteIds.includes(instId);
+    },
   };
+
+  if (accountInactive) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md text-center bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+          <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">🔒</span>
+          </div>
+          <h1 className="text-xl font-bold text-slate-800">Account Deactivated</h1>
+          <p className="text-sm text-slate-500 mt-2">
+            Your account has been deactivated by the administrator. You can no longer access this application.
+            Please contact your Super Admin if you believe this is an error.
+          </p>
+          <button
+            onClick={() => base44.auth.logout(window.location.origin)}
+            className="mt-6 px-5 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 };

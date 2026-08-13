@@ -13,7 +13,7 @@ import { CalendarClock, Plus, Filter, X, Upload, CheckCircle, XCircle, Wallet, P
 import { toast } from "sonner";
 
 export default function RecurringPayments() {
-  const { role, instituteId, instituteIds, userName, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, managesInstitute } = useUserRole();
+  const { role, instituteId, scopeInstituteIds, activeInstitute, userName, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, managesInstitute } = useUserRole();
   const [recurring, setRecurring] = useState([]);
   const [instances, setInstances] = useState([]);
   const [institutes, setInstitutes] = useState([]);
@@ -40,10 +40,9 @@ export default function RecurringPayments() {
   useEffect(() => { fetchData(); }, []);
 
   const visibleRecurring = useMemo(() => recurring.filter((r) => {
-    if (isInstituteAdmin && instituteId && r.institute_id !== instituteId) return false;
-    if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(r.institute_id)) return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(r.institute_id)) return false;
     return true;
-  }), [recurring, isInstituteAdmin, instituteId, isCentreHead, instituteIds]);
+  }), [recurring, scopeInstituteIds]);
 
   const visibleInstances = useMemo(() => {
     const recIds = new Set(visibleRecurring.map((r) => r.id));
@@ -302,7 +301,7 @@ function CreateRecurringModal({ institutes, vendors, userName, instituteId, crea
         </div>
         <div className="space-y-3">
           <div><Label className="text-xs">Institute *</Label>
-            <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={!!instituteId}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{institutes.map((i) => <SelectItem key={i.id} value={i.id}>{i.institute_name}</SelectItem>)}</SelectContent></Select>
+            <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={institutes.length === 1}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{institutes.map((i) => <SelectItem key={i.id} value={i.id}>{i.institute_name}</SelectItem>)}</SelectContent></Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs">Category</Label><Select value={form.payment_category} onValueChange={(v) => setForm({ ...form, payment_category: v })}><SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(RP_CATEGORY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>

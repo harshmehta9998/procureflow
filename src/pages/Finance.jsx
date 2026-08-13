@@ -15,7 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 export default function Finance() {
   const navigate = useNavigate();
-  const { instituteId, isSuperAdmin, isFinance } = useUserRole();
+  const { scopeInstituteIds, activeInstitute, isSuperAdmin, isFinance } = useUserRole();
   const [milestones, setMilestones] = useState([]);
   const [pos, setPos] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -74,7 +74,7 @@ export default function Finance() {
       if (m.status === "cancelled") return false;
       const po = m.po;
       if (!po) return false;
-      if (instituteId && !isSuperAdmin && po.institute_id !== instituteId) return false;
+      if (scopeInstituteIds !== null && !scopeInstituteIds.includes(po.institute_id)) return false;
       if (filters.institute !== "all" && po.institute_id !== filters.institute) return false;
       if (filters.vendor !== "all" && po.vendor_id !== filters.vendor) return false;
       if (filters.poNumber && !po.po_number?.toLowerCase().includes(filters.poNumber.toLowerCase())) return false;
@@ -89,7 +89,7 @@ export default function Finance() {
       if (filters.dateTo && m.due_date && m.due_date > filters.dateTo) return false;
       return true;
     });
-  }, [enrichedMilestones, filters, instituteId, isSuperAdmin]);
+  }, [enrichedMilestones, filters, scopeInstituteIds, isSuperAdmin]);
 
   // Categorize milestones
   const dueToday = filteredMilestones.filter((m) => m.due_date && new Date(m.due_date) <= today && (m.outstanding_amount || 0) > 0);
@@ -121,6 +121,7 @@ export default function Finance() {
   // Monthly payment chart
   const monthlyPayments = {};
   payments.forEach((p) => {
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return;
     const m = p.payment_date ? new Date(p.payment_date).toLocaleDateString("en-IN", { month: "short" }) : "Unknown";
     monthlyPayments[m] = (monthlyPayments[m] || 0) + (p.amount_paid || 0);
   });

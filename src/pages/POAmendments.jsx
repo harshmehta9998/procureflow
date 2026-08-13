@@ -8,7 +8,7 @@ import { GitBranch } from "lucide-react";
 
 export default function POAmendments() {
   const navigate = useNavigate();
-  const { isSuperAdmin, isFinance, isCentreHead, isInstituteAdmin, instituteId, instituteIds } = useUserRole();
+  const { isSuperAdmin, isFinance, isCentreHead, isInstituteAdmin, scopeInstituteIds, activeInstitute } = useUserRole();
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,10 +22,9 @@ export default function POAmendments() {
   }, []);
 
   const amendments = useMemo(() => pos.filter((p) => p.is_amendment).filter((p) => {
-    if (isInstituteAdmin && instituteId && p.institute_id !== instituteId) return false;
-    if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(p.institute_id)) return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return false;
     return true;
-  }), [pos, isInstituteAdmin, instituteId, isCentreHead, instituteIds]);
+  }), [pos, scopeInstituteIds]);
 
   const parents = useMemo(() => {
     const map = {};

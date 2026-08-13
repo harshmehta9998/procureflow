@@ -6,12 +6,21 @@
       "type": "string",
       "enum": [
         "admin",
+        "user"
+      ],
+      "default": "user",
+      "title": "Platform Role"
+    },
+    "app_role": {
+      "type": "string",
+      "enum": [
+        "admin",
         "centre_head",
         "super_admin",
         "finance"
       ],
       "default": "admin",
-      "title": "Role"
+      "title": "Application Role"
     },
     "institute_id": {
       "type": "string",
@@ -34,6 +43,24 @@
         "type": "string"
       },
       "title": "Mapped Institute Names"
+    },
+    "mobile_number": {
+      "type": "string",
+      "title": "Mobile Number"
+    },
+    "account_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "title": "Account Status"
+    },
+    "must_change_password": {
+      "type": "boolean",
+      "default": false,
+      "title": "Must Change Password"
     }
   }
 }

@@ -15,7 +15,7 @@ const SETTLE_LABELS = { refund: "Vendor Refund", credit_adjustment: "Vendor Cred
 const SETTLE_COLORS = { refund: "bg-blue-100 text-blue-700", credit_adjustment: "bg-purple-100 text-purple-700", write_off: "bg-rose-100 text-rose-700" };
 
 export default function RefundsCredits() {
-  const { isSuperAdmin, isFinance, userName } = useUserRole();
+  const { isSuperAdmin, isFinance, userName, scopeInstituteIds } = useUserRole();
   const [credits, setCredits] = useState([]);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,10 +34,11 @@ export default function RefundsCredits() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const totalRefund = credits.filter((c) => c.settlement_type === "refund").reduce((s, c) => s + (c.amount || 0), 0);
-  const totalCredit = credits.filter((c) => c.settlement_type === "credit_adjustment").reduce((s, c) => s + (c.amount || 0), 0);
-  const totalWriteOff = credits.filter((c) => c.settlement_type === "write_off").reduce((s, c) => s + (c.amount || 0), 0);
-  const pending = credits.filter((c) => c.status === "pending");
+  const scopedCredits = useMemo(() => credits.filter((c) => scopeInstituteIds === null || scopeInstituteIds.includes(c.institute_id)), [credits, scopeInstituteIds]);
+  const totalRefund = scopedCredits.filter((c) => c.settlement_type === "refund").reduce((s, c) => s + (c.amount || 0), 0);
+  const totalCredit = scopedCredits.filter((c) => c.settlement_type === "credit_adjustment").reduce((s, c) => s + (c.amount || 0), 0);
+  const totalWriteOff = scopedCredits.filter((c) => c.settlement_type === "write_off").reduce((s, c) => s + (c.amount || 0), 0);
+  const pending = scopedCredits.filter((c) => c.status === "pending");
 
   const completeRefund = async (c) => {
     await base44.entities.VendorCredit.update(c.id, { status: "completed", refund_received: c.amount });
@@ -83,7 +84,7 @@ export default function RefundsCredits() {
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-200"><h3 className="font-semibold text-slate-800 text-sm">Settlement Records</h3></div>
-        {credits.length === 0 ? <EmptyState icon={RefreshCw} title="No refund or credit records" sub="These are created when cancelling a partially-paid PO." /> : (
+        {scopedCredits.length === 0 ? <EmptyState icon={RefreshCw} title="No refund or credit records" sub="These are created when cancelling a partially-paid PO." /> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500 uppercase"><tr>
@@ -96,7 +97,7 @@ export default function RefundsCredits() {
                 <th className="text-right px-4 py-3 font-medium">Action</th>
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {credits.map((c) => (
+                {scopedCredits.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">{c.from_po_number}</td>
                     <td className="px-4 py-3 text-slate-600">{c.vendor_name}</td>

@@ -14,7 +14,7 @@ import { Receipt, Plus, Filter, X, Upload, CheckCircle, XCircle, Wallet } from "
 import { toast } from "sonner";
 
 export default function PaymentRequests() {
-  const { role, instituteId, instituteIds, userName, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, managesInstitute } = useUserRole();
+  const { role, instituteId, scopeInstituteIds, activeInstitute, userName, isInstituteAdmin, isFinance, isSuperAdmin, isCentreHead, managesInstitute } = useUserRole();
   const [searchParams] = useSearchParams();
   const [requests, setRequests] = useState([]);
   const [institutes, setInstitutes] = useState([]);
@@ -50,8 +50,7 @@ export default function PaymentRequests() {
 
   const filtered = useMemo(() => {
     return requests.filter((r) => {
-      if (isInstituteAdmin && instituteId && r.institute_id !== instituteId) return false;
-      if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(r.institute_id)) return false;
+      if (scopeInstituteIds !== null && !scopeInstituteIds.includes(r.institute_id)) return false;
       const f = filters;
       if (f.q) {
         const q = f.q.toLowerCase();
@@ -64,7 +63,7 @@ export default function PaymentRequests() {
       if (f.dateTo && r.required_date && r.required_date > f.dateTo) return false;
       return true;
     });
-  }, [requests, filters, isInstituteAdmin, instituteId, isCentreHead, instituteIds]);
+  }, [requests, filters, scopeInstituteIds]);
 
   const totalRequested = filtered.reduce((s, r) => s + (r.amount || 0), 0);
   const totalPaid = filtered.filter((r) => r.status === "paid").reduce((s, r) => s + (r.amount_paid || 0), 0);
@@ -303,7 +302,7 @@ function CreateRequestModal({ institutes, vendors, userName, instituteId, onClos
         </div>
         <div className="space-y-3">
           <div><Label className="text-xs">Institute *</Label>
-            <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={!!instituteId}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{institutes.map((i) => <SelectItem key={i.id} value={i.id}>{i.institute_name}</SelectItem>)}</SelectContent></Select>
+            <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={institutes.length === 1}><SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{institutes.map((i) => <SelectItem key={i.id} value={i.id}>{i.institute_name}</SelectItem>)}</SelectContent></Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-xs">Amount *</Label><Input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} className="h-9 mt-1" /></div>

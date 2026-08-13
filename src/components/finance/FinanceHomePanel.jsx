@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { useUserRole } from "@/lib/RoleContext";
 import { formatINR, formatDate } from "@/lib/poUtils";
 import { getMilestoneStatus, MILESTONE_STATUS_LABELS, MILESTONE_BADGES } from "@/lib/paymentScheduleUtils";
 import { Calendar, AlertTriangle, Wallet, ArrowRight } from "lucide-react";
@@ -13,6 +14,7 @@ const inDays = (n) => {
 };
 
 export default function FinanceHomePanel() {
+  const { scopeInstituteIds, activeInstitute } = useUserRole();
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,13 +29,15 @@ export default function FinanceHomePanel() {
     })();
   }, []);
 
+  const scoped = scopeInstituteIds === null ? milestones : milestones.filter((m) => scopeInstituteIds.includes(m.institute_id));
+
   if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
 
-  const overdue = milestones
+  const overdue = scoped
     .filter((m) => m.due_date && m.due_date < todayStr && (m.outstanding_amount || 0) > 0)
     .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
 
-  const upcoming = milestones
+  const upcoming = scoped
     .filter((m) => m.due_date && m.due_date >= todayStr && m.due_date <= inDays(30) && (m.outstanding_amount || 0) > 0)
     .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
 

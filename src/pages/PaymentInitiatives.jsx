@@ -13,7 +13,7 @@ import { Zap, AlertTriangle, Calendar, Filter } from "lucide-react";
 
 export default function PaymentInitiatives() {
   const navigate = useNavigate();
-  const { instituteId, isSuperAdmin, isFinance, isCentreHead, isInstituteAdmin, instituteIds } = useUserRole();
+  const { scopeInstituteIds, activeInstitute, isSuperAdmin, isFinance, isCentreHead, isInstituteAdmin } = useUserRole();
   const [milestones, setMilestones] = useState([]);
   const [pos, setPos] = useState([]);
   const [instances, setInstances] = useState([]);
@@ -83,15 +83,14 @@ export default function PaymentInitiatives() {
   }, [milestones, poMap, instances, paymentReqs]);
 
   const filtered = useMemo(() => rows.filter((r) => {
-    if (isInstituteAdmin && instituteId && r.instituteId !== instituteId) return false;
-    if (isCentreHead && instituteIds && instituteIds.length > 0 && !instituteIds.includes(r.instituteId)) return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(r.instituteId)) return false;
     if (filters.institute && r.instituteId !== filters.institute) return false;
     if (filters.paymentType && r.paymentType !== filters.paymentType) return false;
     if (filters.status && r.status !== filters.status) return false;
     if (filters.dateFrom && r.dueDate && r.dueDate < filters.dateFrom) return false;
     if (filters.dateTo && r.dueDate && r.dueDate > filters.dateTo) return false;
     return true;
-  }).sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999")), [rows, filters, isInstituteAdmin, instituteId, isCentreHead, instituteIds]);
+  }).sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999")), [rows, filters, scopeInstituteIds]);
 
   const totalDue = filtered.reduce((s, r) => s + r.amount, 0);
   const overdueAmount = filtered.filter((r) => r.status === "overdue").reduce((s, r) => s + r.amount, 0);

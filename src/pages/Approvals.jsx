@@ -15,7 +15,7 @@ export default function Approvals() {
   const [searchParams] = useSearchParams();
   const stageFilter = searchParams.get("stage");
   const navigate = useNavigate();
-  const { role, userName, isSuperAdmin, isCentreHead, instituteIds, managesInstitute } = useUserRole();
+  const { role, userName, isSuperAdmin, isCentreHead, instituteIds, scopeInstituteIds, managesInstitute } = useUserRole();
   const [pos, setPos] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,24 +37,30 @@ export default function Approvals() {
   // POs pending centre head
   const posPendingCentreHead = useMemo(() => pos.filter((p) => {
     if (p.status !== "pending_centre_head") return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return false;
     if (isSuperAdmin) return true;
     if (isCentreHead) return instituteIds.includes(p.institute_id);
     return false;
-  }), [pos, isSuperAdmin, isCentreHead, instituteIds]);
+  }), [pos, isSuperAdmin, isCentreHead, instituteIds, scopeInstituteIds]);
 
   // POs pending super admin final approval
   const posPendingSuperAdmin = useMemo(() => pos.filter((p) => p.status === "pending_super_admin"), [pos]);
 
   // POs pending centre head rejected (back to institute admin for resubmit)
-  const posRejectedToAdmin = useMemo(() => pos.filter((p) => p.status === "centre_head_rejected"), [pos]);
+  const posRejectedToAdmin = useMemo(() => pos.filter((p) => {
+    if (p.status !== "centre_head_rejected") return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return false;
+    return true;
+  }), [pos, scopeInstituteIds]);
 
   // Payment requests pending centre head
   const prPendingCentreHead = useMemo(() => requests.filter((r) => {
     if (r.status !== "pending_centre_head") return false;
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(r.institute_id)) return false;
     if (isSuperAdmin) return true;
     if (isCentreHead) return instituteIds.includes(r.institute_id);
     return false;
-  }), [requests, isSuperAdmin, isCentreHead, instituteIds]);
+  }), [requests, isSuperAdmin, isCentreHead, instituteIds, scopeInstituteIds]);
 
   // Payment requests pending super admin
   const prPendingSuperAdmin = useMemo(() => requests.filter((r) => r.status === "pending_super_admin"), [requests]);

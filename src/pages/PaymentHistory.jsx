@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function PaymentHistory() {
-  const { isSuperAdmin, isFinance, isCentreHead, instituteId, instituteIds } = useUserRole();
+  const { isSuperAdmin, isFinance, isCentreHead, scopeInstituteIds, activeInstitute } = useUserRole();
   const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
   const [pos, setPos] = useState([]);
@@ -38,9 +38,7 @@ export default function PaymentHistory() {
   const poMap = useMemo(() => { const m = {}; pos.forEach((p) => (m[p.id] = p)); return m; }, [pos]);
 
   const filtered = useMemo(() => payments.filter((p) => {
-    if (isCentreHead && instituteIds && instituteIds.length > 0) {
-      if (!instituteIds.includes(p.institute_id)) return false;
-    }
+    if (scopeInstituteIds !== null && !scopeInstituteIds.includes(p.institute_id)) return false;
     const f = filters;
     if (f.q) { const q = f.q.toLowerCase(); if (![p.po_number, p.vendor_name, p.institute_name, p.reference_number].some((v) => (v || "").toLowerCase().includes(q))) return false; }
     if (f.institute && p.institute_id !== f.institute) return false;
@@ -48,7 +46,7 @@ export default function PaymentHistory() {
     if (f.dateFrom && p.payment_date && p.payment_date < f.dateFrom) return false;
     if (f.dateTo && p.payment_date && p.payment_date > f.dateTo) return false;
     return true;
-  }), [payments, filters, isCentreHead, instituteIds]);
+  }), [payments, filters, scopeInstituteIds]);
 
   const totalPaid = filtered.reduce((s, p) => s + (p.amount_paid || 0), 0);
 

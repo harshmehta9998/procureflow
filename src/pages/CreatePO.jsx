@@ -214,7 +214,7 @@ export default function CreatePO() {
           <div className="space-y-4">
             <div>
               <Label className="text-sm font-medium">Institute *</Label>
-              <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={!!instituteId}>
+              <Select value={form.institute_id} onValueChange={(v) => setForm({ ...form, institute_id: v })} disabled={institutes.length === 1}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select institute" /></SelectTrigger>
                 <SelectContent>{institutes.map((i) => <SelectItem key={i.id} value={i.id}>{i.institute_name} ({i.institute_code})</SelectItem>)}</SelectContent>
               </Select>

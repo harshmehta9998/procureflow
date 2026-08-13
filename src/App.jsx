@@ -29,6 +29,7 @@ import RefundsCredits from '@/pages/RefundsCredits';
 import PaymentHistory from '@/pages/PaymentHistory';
 import POAmendments from '@/pages/POAmendments';
 import InstitutionFinance from '@/pages/InstitutionFinance';
+import Profile from '@/pages/Profile';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -78,6 +79,7 @@ const AuthenticatedApp = () => {
         <Route path="/payment-history" element={<PaymentHistory />} />
         <Route path="/po-amendments" element={<POAmendments />} />
         <Route path="/institutions" element={<InstitutionFinance />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
