@@ -172,12 +172,12 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {realIsSuperAdmin && (
+            {(
               <div className="relative">
                 <button
                   onClick={() => setRoleOpen(!roleOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-sm font-medium text-amber-700 hover:bg-amber-100"
-                  title="Preview the app as another role (Super Admin only). Backend permissions stay real."
+                  title="Preview the app as another role. Backend permissions stay as your real account."
                 >
                   <Eye className="w-3.5 h-3.5" />
                   Test as: {previewLabel}

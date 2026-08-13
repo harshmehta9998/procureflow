@@ -83,9 +83,9 @@ export const RoleProvider = ({ children }) => {
 
   const realRole = user?.app_role || (user?.role === "admin" ? "super_admin" : null);
   const realIsSuperAdmin = realRole === "super_admin";
-  // previewRole only applies when the real account is Super Admin.
-  const role = (realIsSuperAdmin && previewRole) ? previewRole : realRole;
-  const isSuperAdmin = realIsSuperAdmin && !previewRole;
+  // "Test as Role" preview overrides the UI role for any logged-in user.
+  const role = previewRole || realRole;
+  const isSuperAdmin = role === "super_admin";
   const isCentreHead = role === "centre_head";
   const isFinance = role === "finance";
   const isInstituteAdmin = role === "admin";
