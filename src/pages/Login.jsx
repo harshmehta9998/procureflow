@@ -42,15 +42,9 @@ export default function Login() {
       title="Welcome back"
       subtitle="Log in to your account"
       footer={
-        <>
-          Don't have an account?{" "}
-          <Link
-            to={"/register" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
-            className="text-primary font-medium hover:underline"
-          >
-            Create one
-          </Link>
-        </>
+        <p className="text-xs text-muted-foreground">
+          Access is invite-only — your Super Admin creates all user accounts.
+        </p>
       }
     >
       <Button
