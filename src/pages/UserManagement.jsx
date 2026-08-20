@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import {
   ROLE_VALUES, ROLE_LABELS, ROLE_BADGE, AUTHORITY_TYPES, AUTHORITY_LABELS,
-  platformRoleFor, isOrgWideRole,
+  platformRoleFor, isOrgWideRole, normalizeRole,
 } from "@/lib/roles";
 
 // Shadow the canonical workflow_role onto the legacy app_role field so any
@@ -139,7 +139,7 @@ export default function UserManagement() {
   // ---- Edit user ----
   const startEdit = (u) => {
     setEditingId(u.id);
-    const wfRole = u.workflow_role || u.app_role || (u.role === "admin" ? "super_admin" : "institutional_admin");
+    const wfRole = normalizeRole(u.workflow_role || u.app_role || (u.role === "admin" ? "super_admin" : "institutional_admin")) || "institutional_admin";
     setEdit({
       full_name: u.full_name || "",
       mobile_number: u.mobile_number || "",
@@ -271,7 +271,7 @@ export default function UserManagement() {
     </div>
   );
 
-  const dispRoleOf = (u) => u.workflow_role || u.app_role || (u.role === "admin" ? "super_admin" : "institutional_admin");
+  const dispRoleOf = (u) => normalizeRole(u.workflow_role || u.app_role || (u.role === "admin" ? "super_admin" : "institutional_admin")) || "institutional_admin";
   const roleBadgeOf = (u) => ROLE_BADGE[dispRoleOf(u)] || ROLE_BADGE.institutional_admin;
 
   return (

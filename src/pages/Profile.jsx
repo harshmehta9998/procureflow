@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useUserRole } from "@/lib/RoleContext";
+import { ROLE_LABELS } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -9,15 +10,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const ROLE_LABELS = {
-  super_admin: "Super Admin",
-  centre_head: "Centre Head",
-  admin: "Institute Admin",
-  finance: "Finance",
-};
-
 export default function Profile() {
-  const { user, userName, role, accessibleInstitutes, isSuperAdmin } = useUserRole();
+  const { user, userName, role, roleKey, accessibleInstitutes, isSuperAdmin } = useUserRole();
   const [resetting, setResetting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
@@ -62,7 +56,7 @@ export default function Profile() {
             <h2 className="text-lg font-semibold text-slate-800 truncate">{userName}</h2>
             <div className="flex items-center gap-2 mt-1">
               <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${isSuperAdmin ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-blue-100 text-blue-700 border-blue-200"}`}>
-                {ROLE_LABELS[role] || role}
+                {ROLE_LABELS[roleKey] || role}
               </span>
               <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${isActive ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>
                 {isActive ? "Active" : "Inactive"}
@@ -74,7 +68,7 @@ export default function Profile() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 pt-5 border-t border-slate-100">
           <InfoRow icon={Mail} label="Email" value={user.email} />
           <InfoRow icon={Phone} label="Mobile" value={user.mobile_number || "—"} />
-          <InfoRow icon={Shield} label="Role" value={ROLE_LABELS[role] || role} />
+          <InfoRow icon={Shield} label="Role" value={ROLE_LABELS[roleKey] || role} />
           <div>
             <div className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" /> Assigned Institutions</div>
             {isSuperAdmin ? (
