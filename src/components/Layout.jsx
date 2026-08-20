@@ -177,7 +177,7 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {realIsSuperAdmin && (
+            {(
               <div className="relative">
                 <button
                   onClick={() => setRoleOpen(!roleOpen)}

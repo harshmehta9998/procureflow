@@ -17,7 +17,6 @@ export const RoleProvider = ({ children }) => {
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accountInactive, setAccountInactive] = useState(false);
-  const [pendingAuth, setPendingAuth] = useState(false);
   const [activeInstitute, setActiveInstituteState] = useState("all");
   const [previewRole, setPreviewRoleState] = useState(null); // Super-Admin-only "Test as Role" override
 
@@ -31,21 +30,6 @@ export const RoleProvider = ({ children }) => {
         // Deactivated accounts cannot use the app — enforce immediately after auth.
         if (u?.account_status === "inactive") {
           setAccountInactive(true);
-          setLoading(false);
-          return;
-        }
-        // Only provisioned accounts may use the app — i.e. accounts a Super Admin
-        // created via User Management (they carry a role and/or mapped institutes).
-        // A random self-registered account has neither and must not reach the app.
-        // The platform app owner (role "admin") is always allowed.
-        const provisioned =
-          !!u?.workflow_role ||
-          !!u?.app_role ||
-          u?.role === "admin" ||
-          (Array.isArray(u?.institute_ids) && u.institute_ids.length > 0) ||
-          !!u?.institute_id;
-        if (!provisioned) {
-          setPendingAuth(true);
           setLoading(false);
           return;
         }
@@ -237,29 +221,6 @@ export const RoleProvider = ({ children }) => {
           <p className="text-sm text-slate-500 mt-2">
             Your account has been deactivated by the administrator. You can no longer access this application.
             Please contact your Super Admin if you believe this is an error.
-          </p>
-          <button
-            onClick={() => base44.auth.logout(window.location.origin)}
-            className="mt-6 px-5 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"
-          >
-            Return to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (pendingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md text-center bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-          <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">⏳</span>
-          </div>
-          <h1 className="text-xl font-bold text-slate-800">Account Pending Authorization</h1>
-          <p className="text-sm text-slate-500 mt-2">
-            Your account hasn't been set up in ProcureFlow yet. Ask your Super Admin to create your
-            account and assign a role — you can then log in using the secure link sent to your email.
           </p>
           <button
             onClick={() => base44.auth.logout(window.location.origin)}

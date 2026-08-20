@@ -67,37 +67,17 @@ export default function Login() {
       title="Welcome back"
       subtitle="Log in to your account"
       footer={
-        <p className="text-xs text-muted-foreground">
-          Access is invite-only — your Super Admin creates all user accounts.
-        </p>
+        <>
+          Don't have an account?{" "}
+          <Link
+            to={"/register" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
+            className="text-primary font-medium hover:underline"
+          >
+            Create one
+          </Link>
+        </>
       }
     >
-      <div className="mb-5">
-        <Label className="text-xs text-muted-foreground mb-2 block">Log in as</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {ROLE_OPTIONS.map((r) => {
-            const Icon = r.icon;
-            const active = selectedRole === r.value;
-            return (
-              <button
-                type="button"
-                key={r.value}
-                onClick={() => { setSelectedRole(r.value); setError(""); }}
-                className={`flex items-center gap-2 px-2.5 py-2.5 rounded-lg border text-left transition-colors ${
-                  active ? "border-primary bg-primary/5 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className="leading-tight">
-                  <span className="block text-sm font-medium">{r.label}</span>
-                  <span className="block text-[10px] text-muted-foreground">{r.desc}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <Button
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
@@ -161,7 +141,7 @@ export default function Login() {
             />
           </div>
         </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading || !selectedRole}>
+        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

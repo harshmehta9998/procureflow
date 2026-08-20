@@ -30,10 +30,6 @@ import PaymentHistory from '@/pages/PaymentHistory';
 import POAmendments from '@/pages/POAmendments';
 import InstitutionFinance from '@/pages/InstitutionFinance';
 import Profile from '@/pages/Profile';
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -45,21 +41,6 @@ const AuthenticatedApp = () => {
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
       </div>
-    );
-  }
-
-  // Public authentication pages render regardless of auth state so users can
-  // log in / register / reset after logout — otherwise logout loops into a
-  // redirect that never shows a page.
-  const isAuthRoute = ["/login", "/register", "/forgot-password", "/reset-password"].includes(window.location.pathname);
-  if (isAuthRoute) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-      </Routes>
     );
   }
 
