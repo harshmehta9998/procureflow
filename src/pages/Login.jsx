@@ -4,16 +4,21 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, Shield, Building2, UserCog, Wallet } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, Shield, Building2, UserCog, Wallet, Settings, Network, Users, ShieldCheck } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
+import { normalizeRole } from "@/lib/roles";
 
 const ROLE_OPTIONS = [
-  { value: "super_admin", label: "Super Admin", icon: Shield, desc: "Full system oversight" },
-  { value: "admin", label: "Institutional Admin", icon: Building2, desc: "Manage institute POs" },
+  { value: "super_admin", label: "Super Admin", icon: Shield, desc: "Approve CAPEX & oversight" },
+  { value: "system_administrator", label: "System Administrator", icon: Settings, desc: "Org-wide configuration" },
+  { value: "institutional_admin", label: "Institutional Admin", icon: Building2, desc: "Raise OPEX POs" },
+  { value: "approval_admin", label: "Admin", icon: ShieldCheck, desc: "Approve OPEX & raise CAPEX" },
   { value: "centre_head", label: "Centre Head", icon: UserCog, desc: "Approve & verify" },
-  { value: "finance", label: "Finance", icon: Wallet, desc: "Payments & liabilities" },
+  { value: "finance_controller", label: "Finance Controller", icon: Wallet, desc: "Payments & CAPEX review" },
+  { value: "department_admin", label: "Department Admin", icon: Network, desc: "Department operations" },
+  { value: "department_head", label: "Department Head", icon: Users, desc: "Approval authority" },
 ];
 
 export default function Login() {
@@ -39,8 +44,8 @@ export default function Login() {
       // Verify the account actually holds the selected role; otherwise block
       // access and sign the user back out so they can't proceed.
       const me = await base44.auth.me();
-      const actualRole = me?.app_role || (me?.role === "admin" ? "super_admin" : null);
-      if (actualRole !== selectedRole) {
+      const actualRole = me?.workflow_role || me?.app_role || (me?.role === "admin" ? "super_admin" : null);
+      if (normalizeRole(actualRole) !== selectedRole) {
         await base44.auth.logout();
         const wanted = ROLE_OPTIONS.find((r) => r.value === selectedRole)?.label || selectedRole;
         throw new Error(`This account is not registered as a ${wanted}. Pick the role that matches your account.`);
