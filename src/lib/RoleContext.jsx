@@ -1,10 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { normalizeRole } from "@/lib/roles";
 
 const RoleContext = createContext(null);
 export const useUserRole = () => useContext(RoleContext);
 
 const STORAGE_KEY = (uid) => `pf_active_institute_${uid || "anon"}`;
+
+// Resolve the user's canonical workflow role. New accounts carry
+// `workflow_role`; legacy accounts fall back to `app_role` (normalized) so
+// nothing existing breaks.
+const resolveRole = (u) => u?.workflow_role || u?.app_role || (u?.role === "admin" ? "super_admin" : null);
 
 export const RoleProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -29,10 +35,11 @@ export const RoleProvider = ({ children }) => {
           return;
         }
         // Only provisioned accounts may use the app — i.e. accounts a Super Admin
-        // created via User Management (they carry an app_role and/or mapped
-        // institutes). A random self-registered account has neither and must not
-        // reach the app. The platform app owner (role "admin") is always allowed.
+        // created via User Management (they carry a role and/or mapped institutes).
+        // A random self-registered account has neither and must not reach the app.
+        // The platform app owner (role "admin") is always allowed.
         const provisioned =
+          !!u?.workflow_role ||
           !!u?.app_role ||
           u?.role === "admin" ||
           (Array.isArray(u?.institute_ids) && u.institute_ids.length > 0) ||
@@ -42,29 +49,31 @@ export const RoleProvider = ({ children }) => {
           setLoading(false);
           return;
         }
-        // Resolve the application role from app_role. Bootstrap: a platform admin
-        // (role "admin") created before app_role existed is treated as Super Admin
-        // and we persist app_role so future loads are deterministic.
-        let appRole = u?.app_role || null;
-        if (!appRole && u?.role === "admin") {
-          appRole = "super_admin";
-          try { await base44.auth.updateMe({ app_role: "super_admin" }); } catch {}
+        // Bootstrap the platform app owner (created before roles existed) as
+        // Super Admin and persist so future loads are deterministic.
+        if (!u?.workflow_role && !u?.app_role && u?.role === "admin") {
+          try {
+            await base44.auth.updateMe({ workflow_role: "super_admin", app_role: "super_admin" });
+          } catch {}
         }
-        const isSuperAdmin = appRole === "super_admin";
+
         const insts = await base44.entities.Institute.list();
         setInstitutes(insts);
 
         const myInstIds = u?.institute_ids || (u?.institute_id ? [u.institute_id] : []);
+        const realRoleKey = normalizeRole(resolveRole(u));
+        const realIsSuperAdmin = realRoleKey === "super_admin" || realRoleKey === "system_administrator";
+
         let initial;
         try {
           initial = localStorage.getItem(STORAGE_KEY(u.id)) || "all";
         } catch { initial = "all"; }
         // Validate the persisted selection is still accessible to the user.
-        if (initial !== "all" && !isSuperAdmin && !myInstIds.includes(initial)) {
+        if (initial !== "all" && !realIsSuperAdmin && !myInstIds.includes(initial)) {
           initial = "all";
         }
         // If the user has exactly one institute and is not super admin, default to it.
-        if (initial === "all" && !isSuperAdmin && myInstIds.length === 1) {
+        if (initial === "all" && !realIsSuperAdmin && myInstIds.length === 1) {
           initial = myInstIds[0];
         }
         setActiveInstituteState(initial);
@@ -96,14 +105,43 @@ export const RoleProvider = ({ children }) => {
     } catch {}
   };
 
-  const realRole = user?.app_role || (user?.role === "admin" ? "super_admin" : null);
-  const realIsSuperAdmin = realRole === "super_admin";
-  // "Test as Role" preview overrides the UI role for any logged-in user.
+  const realRole = resolveRole(user);
+  const realRoleKey = normalizeRole(realRole);
+  const realIsSuperAdmin = realRoleKey === "super_admin" || realRoleKey === "system_administrator";
+
+  // The effective role for UI: a Super-Admin "Test as Role" preview overrides it.
+  // `role` is the raw value (canonical or legacy); `roleKey` is the normalized
+  // canonical key the rest of the app keys off.
   const role = previewRole || realRole;
-  const isSuperAdmin = role === "super_admin";
-  const isCentreHead = role === "centre_head";
-  const isFinance = role === "finance";
-  const isInstituteAdmin = role === "admin";
+  const roleKey = normalizeRole(role) || realRoleKey;
+
+  // Role flags — legacy aliases kept working so existing screens don't break.
+  const isSuperAdmin = roleKey === "super_admin" || roleKey === "system_administrator";
+  const isCentreHead = roleKey === "centre_head";
+  const isFinance = roleKey === "finance_controller"; // also matches legacy "finance"
+  const isInstituteAdmin = roleKey === "institutional_admin"; // also matches legacy "admin"
+
+  // New role flags per the approval-workflow hierarchy.
+  const isInstitutionalAdmin = isInstituteAdmin;
+  const isDepartmentAdmin = roleKey === "department_admin";
+  const isDepartmentHead = roleKey === "department_head";
+  const isApprovalAdmin = roleKey === "approval_admin";
+  const isFinanceController = isFinance;
+  const isSystemAdministrator = roleKey === "system_administrator";
+
+  // Configurable approval authorities (Admin / Centre Head / Department Head).
+  // Super Admin can act as any authority for oversight.
+  const approvalAuthorities = Array.isArray(user?.approval_authorities) ? user.approval_authorities : [];
+  const hasAuthority = (type) => isSuperAdmin || approvalAuthorities.includes(type);
+
+  // Workflow permission helpers (OPEX / CAPEX routing). These describe what the
+  // current effective role is allowed to do; the approval queues enforce them.
+  const canRaiseOpex = isInstitutionalAdmin;
+  const canRaiseCapex = isApprovalAdmin;
+  const canApproveAdminLayer = isApprovalAdmin || isSuperAdmin;
+  const canApproveCentreHead = isCentreHead || isSuperAdmin;
+  const canApproveFinanceController = isFinance || isSuperAdmin;
+  const canApproveManagement = isSuperAdmin;
 
   const myInstIds = user?.institute_ids || (user?.institute_id ? [user.institute_id] : []);
   // Institutes available in the selector follow the REAL account (Super Admin sees
@@ -134,6 +172,7 @@ export const RoleProvider = ({ children }) => {
   const value = {
     user,
     role,
+    roleKey,
     userName,
     loading,
     accountInactive,
@@ -146,17 +185,34 @@ export const RoleProvider = ({ children }) => {
     instituteNames,
     instituteId,
     instituteName,
-    // role flags
+    // role flags (legacy + new)
     isSuperAdmin,
     isCentreHead,
     isFinance,
     isInstituteAdmin,
+    isInstitutionalAdmin,
+    isDepartmentAdmin,
+    isDepartmentHead,
+    isApprovalAdmin,
+    isFinanceController,
+    isSystemAdministrator,
     hasMultipleInstitutes: instituteIds.length > 1 || realIsSuperAdmin,
     showInstitutionSelector: realIsSuperAdmin || myInstIds.length > 1,
+    // approval authority
+    approvalAuthorities,
+    hasAuthority,
+    // workflow permissions
+    canRaiseOpex,
+    canRaiseCapex,
+    canApproveAdminLayer,
+    canApproveCentreHead,
+    canApproveFinanceController,
+    canApproveManagement,
     // "Test as Role" preview (Super Admin only)
     previewRole,
     setPreviewRole,
     realRole,
+    realRoleKey,
     realIsSuperAdmin,
     // permission helpers
     managesInstitute: (instId) => {

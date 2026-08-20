@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useUserRole } from "@/lib/RoleContext";
+import { ROLE_LABELS } from "@/lib/roles";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,52 +15,52 @@ const NAV_GROUPS = [
   {
     label: "Procurement",
     items: [
-      { label: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "centre_head", "super_admin", "finance"] },
-      { label: "Purchase Orders", path: "/purchase-orders", icon: FileText, roles: ["admin", "centre_head", "super_admin", "finance"] },
-      { label: "PO Amendments", path: "/po-amendments", icon: GitBranch, roles: ["admin", "centre_head", "super_admin", "finance"] },
-      { label: "Delivery & Quantity Verification", path: "/delivery-verification", icon: PackageCheck, roles: ["admin", "centre_head", "super_admin"] },
+      { label: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["institutional_admin", "department_admin", "department_head", "centre_head", "approval_admin", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Purchase Orders", path: "/purchase-orders", icon: FileText, roles: ["institutional_admin", "department_admin", "department_head", "centre_head", "approval_admin", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "PO Amendments", path: "/po-amendments", icon: GitBranch, roles: ["institutional_admin", "approval_admin", "centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Delivery & Quantity Verification", path: "/delivery-verification", icon: PackageCheck, roles: ["institutional_admin", "approval_admin", "centre_head", "super_admin", "system_administrator"] },
     ],
   },
   {
     label: "Payments",
     items: [
-      { label: "Payment Initiatives", path: "/payment-initiatives", icon: Zap, roles: ["admin", "centre_head", "super_admin", "finance"] },
-      { label: "Request for Payment", path: "/payment-requests", icon: Receipt, roles: ["admin", "centre_head", "super_admin", "finance"] },
-      { label: "Recurring Payments", path: "/recurring-payments", icon: CalendarClock, roles: ["super_admin", "finance"] },
-      { label: "Payment History", path: "/payment-history", icon: History, roles: ["super_admin", "finance", "centre_head"] },
+      { label: "Payment Initiatives", path: "/payment-initiatives", icon: Zap, roles: ["institutional_admin", "approval_admin", "centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Request for Payment", path: "/payment-requests", icon: Receipt, roles: ["institutional_admin", "approval_admin", "centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Recurring Payments", path: "/recurring-payments", icon: CalendarClock, roles: ["finance_controller", "super_admin", "system_administrator"] },
+      { label: "Payment History", path: "/payment-history", icon: History, roles: ["centre_head", "finance_controller", "super_admin", "system_administrator"] },
     ],
   },
   {
     label: "Finance",
     items: [
-      { label: "Finance Dashboard", path: "/finance", icon: Wallet, roles: ["finance", "super_admin", "centre_head"] },
-      { label: "Institution-wise Finance", path: "/institutions", icon: Building2, roles: ["super_admin", "finance", "centre_head"] },
-      { label: "Vendor-wise Finance", path: "/vendors", icon: UsersIcon, roles: ["super_admin", "finance", "centre_head"] },
-      { label: "Refunds & Credits", path: "/refunds-credits", icon: RefreshCw, roles: ["super_admin", "finance"] },
+      { label: "Finance Dashboard", path: "/finance", icon: Wallet, roles: ["centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Institution-wise Finance", path: "/institutions", icon: Building2, roles: ["centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Vendor-wise Finance", path: "/vendors", icon: UsersIcon, roles: ["centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Refunds & Credits", path: "/refunds-credits", icon: RefreshCw, roles: ["finance_controller", "super_admin", "system_administrator"] },
     ],
   },
   {
     label: "Approvals",
     items: [
-      { label: "My Approvals", path: "/approvals", icon: ShieldCheck, roles: ["centre_head", "super_admin", "admin"] },
-      { label: "Centre Head Approvals", path: "/approvals?stage=centre_head", icon: ShieldCheck, roles: ["centre_head", "super_admin"] },
-      { label: "Super Admin Approvals", path: "/approvals?stage=super_admin", icon: ShieldCheck, roles: ["super_admin"] },
+      { label: "My Approvals", path: "/approvals", icon: ShieldCheck, roles: ["institutional_admin", "department_head", "centre_head", "approval_admin", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Centre Head Approvals", path: "/approvals?stage=centre_head", icon: ShieldCheck, roles: ["centre_head", "super_admin", "system_administrator"] },
+      { label: "Super Admin Approvals", path: "/approvals?stage=super_admin", icon: ShieldCheck, roles: ["super_admin", "system_administrator"] },
     ],
   },
   {
     label: "Management",
     items: [
-      { label: "Institutions", path: "/institutes", icon: Building2, roles: ["super_admin", "centre_head"] },
-      { label: "Centre Heads", path: "/centre-heads", icon: UserCog, roles: ["super_admin"] },
-      { label: "Vendors", path: "/vendors", icon: UsersIcon, roles: ["admin", "super_admin", "finance", "centre_head"] },
-      { label: "Users", path: "/user-management", icon: UsersIcon, roles: ["super_admin"] },
+      { label: "Institutions", path: "/institutes", icon: Building2, roles: ["super_admin", "system_administrator", "centre_head"] },
+      { label: "Centre Heads", path: "/centre-heads", icon: UserCog, roles: ["super_admin", "system_administrator"] },
+      { label: "Vendors", path: "/vendors", icon: UsersIcon, roles: ["institutional_admin", "approval_admin", "centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Users", path: "/user-management", icon: UsersIcon, roles: ["super_admin", "system_administrator"] },
     ],
   },
   {
     label: "Reports",
     items: [
-      { label: "Reports", path: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance", "centre_head"] },
-      { label: "Audit Trail", path: "/audit-log", icon: ClipboardList, roles: ["super_admin"] },
+      { label: "Reports", path: "/reports", icon: BarChart3, roles: ["institutional_admin", "approval_admin", "centre_head", "finance_controller", "super_admin", "system_administrator"] },
+      { label: "Audit Trail", path: "/audit-log", icon: ClipboardList, roles: ["super_admin", "system_administrator"] },
     ],
   },
 ];
@@ -72,7 +73,7 @@ const matchesPath = (pathname, itemPath) => {
 
 export default function Layout() {
   const {
-    role, userName, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead,
+    role, roleKey, userName, isSuperAdmin, isFinance, isInstituteAdmin, isCentreHead,
     instituteName, showInstitutionSelector, accessibleInstitutes, activeInstitute,
     setActiveInstitute, previewRole, setPreviewRole, realIsSuperAdmin,
   } = useUserRole();
@@ -84,22 +85,26 @@ export default function Layout() {
 
   const PREVIEW_ROLES = [
     { value: null, label: "Super Admin (actual)" },
-    { value: "admin", label: "Institute Admin" },
+    { value: "institutional_admin", label: "Institutional Admin" },
+    { value: "approval_admin", label: "Admin" },
     { value: "centre_head", label: "Centre Head" },
-    { value: "finance", label: "Finance" },
+    { value: "finance_controller", label: "Finance Controller" },
+    { value: "department_admin", label: "Department Admin" },
+    { value: "department_head", label: "Department Head" },
+    { value: "system_administrator", label: "System Administrator" },
   ];
   const previewLabel = PREVIEW_ROLES.find((r) => r.value === previewRole)?.label || "Super Admin (actual)";
 
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((i) => i.roles.includes(role)),
+    items: g.items.filter((i) => i.roles.includes(roleKey)),
   })).filter((g) => g.items.length > 0);
 
   const handleLogout = async () => {
     await base44.auth.logout(window.location.origin);
   };
 
-  const roleBadge = isSuperAdmin ? "Super Admin" : isCentreHead ? "Centre Head" : isFinance ? "Finance" : "Institute Admin";
+  const roleBadge = ROLE_LABELS[roleKey] || (isSuperAdmin ? "Super Admin" : isCentreHead ? "Centre Head" : isFinance ? "Finance" : "Institute Admin");
   const activeInstName = activeInstitute === "all"
     ? "All Institutions"
     : (accessibleInstitutes.find((i) => i.id === activeInstitute)?.institute_name || "All Institutions");
